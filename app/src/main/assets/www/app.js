@@ -510,10 +510,13 @@
 
   /* ------------------------------------------------------------------ lifecycle */
   function fit() {
-    const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    // innerWidth on a TV WebView grows to the 1920px stage itself; clientWidth is the real screen.
+    const de = document.documentElement;
+    const W = de.clientWidth || window.innerWidth, H = de.clientHeight || window.innerHeight;
+    const s = Math.min(W / 1920, H / 1080);
     stage.style.transform = `scale(${s})`;
-    stage.style.left = (window.innerWidth - 1920 * s) / 2 + "px";
-    stage.style.top = (window.innerHeight - 1080 * s) / 2 + "px";
+    stage.style.left = (W - 1920 * s) / 2 + "px";
+    stage.style.top = (H - 1080 * s) / 2 + "px";
   }
 
   const app = window.app = {

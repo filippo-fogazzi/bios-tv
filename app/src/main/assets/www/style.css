@@ -37,7 +37,7 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 .muted { color: var(--muted); }
 
 /* 1920×1080 stage, scaled to the TV's real viewport */
-#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; }
+#stage { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; }
 
 /* ---------- background ---------- */
 .bg { position: absolute; inset: 0; background: var(--bg); }
