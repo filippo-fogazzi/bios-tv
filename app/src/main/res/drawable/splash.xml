@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown by Android the instant the app starts, before any code runs: costs no loading time. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/bios_black" />
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/splash_mark" android:filter="true" />
+    </item>
+</layer-list>

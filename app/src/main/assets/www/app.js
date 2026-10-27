@@ -647,6 +647,7 @@
       <div class="list">
         ${S.update ? "" : row("update", "Aggiornamenti", updateLine(), "")}
         ${row("system", "Impostazioni della TV", "", "")}
+        ${row("home", "Tasto Home porta a BIOS", "Come attivarlo, passo per passo", B.isHomeWatcherOn() ? "ATTIVO" : "DA ATTIVARE")}
       </div>`);
   }
   /* The direct link to Accessibility doesn't exist on every TV: explain the path instead. */
@@ -983,6 +984,7 @@
     renderClock(); renderCards(); renderApps();
     B.requestApps(false);
     greet({ voice: false, fresh: true });                               // text immediately…
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (B.ready) B.ready(); }));   // painted: drop the splash
     // …heavy work after the first frame, so the screen appears at once
     requestAnimationFrame(() => setTimeout(applyTheme, 30));
     Promise.race([Promise.all([loadWeather(), loadBios()]), new Promise(r => setTimeout(r, 1500))])

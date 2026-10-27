@@ -75,7 +75,8 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         web = new WebView(this);
-        web.setBackgroundColor(Color.rgb(9, 10, 11));
+        web.setBackgroundColor(Color.TRANSPARENT);
+        web.setAlpha(0.01f);                             // the splash (window background) shows until the page is ready
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -88,6 +89,7 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "Android");
         setContentView(web);
         web.loadUrl("file:///android_asset/www/index.html");
+        web.postDelayed(this::reveal, 2500);           // safety net if the page never signals
 
         initTts();
         LifeServer.ensure(this, () -> js("window.app&&app.onData()"));
@@ -136,6 +138,16 @@ public class MainActivity extends Activity {
 
     private void speakNow(String text) {
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "bios-" + System.currentTimeMillis());
+    }
+
+    private boolean revealed;
+
+    /** Fade the home in over the splash, once. */
+    void reveal() {
+        if (revealed || web == null) return;
+        revealed = true;
+        web.animate().alpha(1f).setDuration(420).start();
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.rgb(9, 10, 11)));
     }
 
     void js(String code) {
@@ -336,6 +348,9 @@ public class MainActivity extends Activity {
                 js("window.app&&app._http(" + JSONObject.quote(id) + "," + ok + "," + JSONObject.quote(res) + ")");
             });
         }
+
+        /** Called by the page after its first paint. */
+        @JavascriptInterface public void ready() { runOnUiThread(MainActivity.this::reveal); }
 
         @JavascriptInterface public String getServerInfo() { return LifeServer.info(MainActivity.this); }
 
