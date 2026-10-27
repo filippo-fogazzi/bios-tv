@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityEvent;
 
@@ -44,6 +45,25 @@ public class HomeWatcherService extends AccessibilityService {
 
     @Override
     public void onInterrupt() {}
+
+    /**
+     * Re-enables this service by itself. Works only if the permission WRITE_SECURE_SETTINGS was
+     * granted once via ADB; that grant survives app updates, so Home keeps working after each one.
+     */
+    static boolean tryEnable(Context c) {
+        if (c.checkSelfPermission("android.permission.WRITE_SECURE_SETTINGS") != PackageManager.PERMISSION_GRANTED) return false;
+        try {
+            android.content.ContentResolver cr = c.getContentResolver();
+            String me = new ComponentName(c, HomeWatcherService.class).flattenToString();
+            String cur = Settings.Secure.getString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            String next = cur == null || cur.isEmpty() ? me : (cur.contains(me) ? cur : cur + ":" + me);
+            Settings.Secure.putString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, next);
+            Settings.Secure.putInt(cr, Settings.Secure.ACCESSIBILITY_ENABLED, 1);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     static boolean isEnabled(Context c) {
         String on = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);

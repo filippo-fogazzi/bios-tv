@@ -9,6 +9,7 @@ public class UpdateReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent i) {
         if (i == null || !Intent.ACTION_MY_PACKAGE_REPLACED.equals(i.getAction())) return;
+        if (!HomeWatcherService.isEnabled(c)) HomeWatcherService.tryEnable(c);   // the update may have switched it off
         Updater.reopenIfJustUpdated(c);
     }
 }

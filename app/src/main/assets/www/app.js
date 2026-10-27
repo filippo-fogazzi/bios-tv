@@ -650,13 +650,13 @@
       </div>`);
   }
   /* The direct link to Accessibility doesn't exist on every TV: explain the path instead. */
-  function openHomeGuide() {
+  function openHomeGuide(lost) {
     const on = B.isHomeWatcherOn();
     openPanel(`
       <div class="k mono">BIOS / TASTO HOME</div>
       <h2>TASTO<span class="muted">HOME.</span></h2>
       <div class="info">
-        <div class="k mono">STATO</div><div class="big">${on ? "Attivo: Home e accensione portano a BIOS" : "Non attivo"}</div>
+        <div class="k mono">STATO</div><div class="big">${on ? "Attivo: Home e accensione portano a BIOS" : lost ? "Disattivato dall'ultimo aggiornamento" : "Non attivo"}</div>
       </div>
       <div class="sec mono">DA FARE UNA VOLTA SOLA</div>
       <div class="info steps">
@@ -931,6 +931,12 @@
     updateFailed(msg) {
       S.updMsg = "Non riuscito" + (msg ? ": " + String(msg).slice(0, 60) : "") + " · OK per riprovare";
       toast("AGGIORNAMENTO NON RIUSCITO"); refreshSettingsRow();
+    },
+    homeLost() {
+      if (S.study || S.saver || S.panel) return;
+      if (Date.now() - (store.get("homeLostAt", 0)) < 6 * 3600000) return;   // remind at most every 6 h
+      store.set("homeLostAt", Date.now());
+      openHomeGuide(true);
     },
     updateNone() { S.updMsg = `Hai già l'ultima versione (build ${B.currentBuild ? B.currentBuild() : "—"})`; refreshSettingsRow(); },
     updateDownloading() { S.updMsg = "Scarico la nuova versione… poi conferma con Aggiorna"; refreshSettingsRow(); },

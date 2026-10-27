@@ -181,6 +181,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        checkHomeWatcher();
         js("window.app&&app.onResume()");
     }
 
@@ -197,6 +198,15 @@ public class MainActivity extends Activity {
         if (web != null) { web.destroy(); web = null; }
         io.shutdown();
         super.onDestroy();
+    }
+
+    /** Remembers that the Home key worked; if an update switched it off, fix it or tell the UI. */
+    private void checkHomeWatcher() {
+        android.content.SharedPreferences p = getSharedPreferences("biostv", MODE_PRIVATE);
+        boolean on = HomeWatcherService.isEnabled(this);
+        if (!on && p.getBoolean("homeWasOn", false) && HomeWatcherService.tryEnable(this)) on = true;
+        if (on) p.edit().putBoolean("homeWasOn", true).apply();
+        else if (p.getBoolean("homeWasOn", false)) js("window.app&&app.homeLost&&app.homeLost()");
     }
 
     private void openStockHome() {
@@ -328,6 +338,10 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface public String getServerInfo() { return LifeServer.info(MainActivity.this); }
+
+        @JavascriptInterface public boolean canSelfRepairHome() {
+            return checkSelfPermission("android.permission.WRITE_SECURE_SETTINGS") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
 
         @JavascriptInterface public boolean isHomeWatcherOn() { return HomeWatcherService.isEnabled(MainActivity.this); }
 
