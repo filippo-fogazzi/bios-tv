@@ -37,6 +37,12 @@ public class HomeWatcherService extends AccessibilityService {
     }
 
     @Override
+    protected void onServiceConnected() {
+        // After a self-update the system re-binds this service: a reliable moment to reopen BIOS.
+        Updater.reopenIfJustUpdated(this);
+    }
+
+    @Override
     public void onInterrupt() {}
 
     static boolean isEnabled(Context c) {

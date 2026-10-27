@@ -608,32 +608,71 @@
     const k = S.data.profile.scene || "auto";
     return k === "auto" && S.sceneName ? `AUTO · ${SCENE_NAMES[S.sceneName]}` : SCENE_NAMES[k] || "OGNI GIORNO";
   }
+  function row(act, title, sub, value) {
+    return `<button class="pbtn" data-act="${act}"><span class="t"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</span>${value ? `<span class="st">${value}</span>` : ""}</button>`;
+  }
+  function updateLine() {
+    const cur = B.currentBuild ? B.currentBuild() : 0;
+    if (S.updMsg) return S.updMsg;
+    if (S.update) return `Build ${S.update} pronta · OK per installarla`;
+    return `Installata la build ${cur || "—"} · OK per controllare`;
+  }
   function openSettings() {
     let info = {};
     try { info = JSON.parse(B.getServerInfo()); } catch (e) { /* no server */ }
     const home = B.isHomeWatcherOn();
+    const biosVal = { ok: "COLLEGATO", bad: "CODICE ERRATO", offline: "NON RAGGIUNGIBILE", off: "DA COLLEGARE" }[S.biosState || (biosToken() ? "offline" : "off")];
     openPanel(`
-      <div class="k mono">BIOS / SISTEMA</div>
-      <h2>IMPOSTAZIONI<span class="muted">DI CASA.</span></h2>
+      <div class="k mono">BIOS / IMPOSTAZIONI</div>
+      <h2>IMPOSTAZIONI.</h2>
+      ${S.update ? `<div class="list">${row("update", "Nuova versione disponibile", updateLine(), "BUILD " + S.update)}</div>` : ""}
+
+      <div class="sec mono">01 / COLLEGAMENTI</div>
       <div class="info">
-        <div class="k mono">GESTISCI DAL TELEFONO · STESSA RETE WI-FI</div>
+        <div class="k mono">DAL TELEFONO · STESSA RETE WI-FI</div>
         <div class="row"><div class="big">${J.esc(info.url || "Rete non disponibile")}</div><div class="pin">${J.esc(info.pin || "")}</div></div>
+        <div class="k mono" style="margin-top:8px">INDIRIZZO · PIN</div>
       </div>
       <div class="list">
-        <button class="pbtn" data-act="bios">BIOS <span class="st">${{ ok: "COLLEGATO", bad: "CODICE ERRATO", offline: "NON RAGGIUNGIBILE", off: "DA COLLEGARE" }[S.biosState || (biosToken() ? "offline" : "off")]}</span></button>
-        <button class="pbtn" data-act="voice">Voce di benvenuto <span class="st">${S.data.profile.voice !== false ? "ATTIVA" : "SPENTA"}</span></button>
-        <button class="pbtn" data-act="theme">Tema <span class="st">${isLandscape() ? "PAESAGGIO" : "MONOLITH"}</span></button>
-        <button class="pbtn" data-act="scene">Sfondo <span class="st">${sceneLabel()}</span></button>
-        <button class="pbtn" data-act="clock">Orologio <span class="st">${S.data.profile.clockStyle === "thin" ? "SOTTILE" : "APPLE"}</span></button>
-        <button class="pbtn" data-act="saver">Salvaschermo <span class="st">${saverMinutes() ? "DOPO " + saverMinutes() + " MIN" : "SPENTO"}</span></button>
-        <button class="pbtn" data-act="test">Ascolta il briefing <span class="st">OK</span></button>
-        <button class="pbtn" data-act="home">Tasto Home apre BIOS <span class="st">${home ? "ATTIVO" : "DA ATTIVARE"}</span></button>
-        <button class="pbtn" data-act="reorder">Riordina le app <span class="st">OK</span></button>
-        <button class="pbtn" data-act="update">${S.update ? "Installa la nuova versione" : "Cerca aggiornamenti"} <span class="st">${S.update ? "BUILD " + S.update : "BUILD " + (B.currentBuild ? B.currentBuild() : "—")}</span></button>
-        <button class="pbtn" data-act="refresh">Aggiorna meteo e app <span class="st">OK</span></button>
-        <button class="pbtn" data-act="stock">Apri Home di Google TV <span class="st">10 MIN</span></button>
-        <button class="pbtn" data-act="system">Impostazioni TV <span class="st">OK</span></button>
+        ${row("bios", "BIOS", "Agenda, lezioni e allenamenti dalla tua app. OK per aggiornare", biosVal)}
+      </div>
+
+      <div class="sec mono">02 / JARVIS</div>
+      <div class="list">
+        ${row("voice", "Voce", "Saluto all'accensione e quando torni alla home", S.data.profile.voice !== false ? "ATTIVA" : "SPENTA")}
+        ${row("test", "Ascolta il briefing", "Jarvis ti fa il punto adesso", "")}
+      </div>
+
+      <div class="sec mono">03 / ASPETTO</div>
+      <div class="list">
+        ${row("theme", "Tema", "Paesaggio dinamico oppure nero BIOS", isLandscape() ? "PAESAGGIO" : "MONOLITH")}
+        ${row("scene", "Sfondo", "OK per passare al successivo", sceneLabel())}
+        ${row("clock", "Orologio", "Pieno stile Apple oppure sottile", S.data.profile.clockStyle === "thin" ? "SOTTILE" : "APPLE")}
+        ${row("saver", "Salvaschermo", "Paesaggi in movimento quando non usi il telecomando", saverMinutes() ? "DOPO " + saverMinutes() + " MIN" : "SPENTO")}
+      </div>
+
+      <div class="sec mono">04 / APP</div>
+      <div class="list">
+        ${row("reorder", "Riordina le app", "Scegli un'app, poi spostala con le frecce", "")}
+        ${row("refresh", "Aggiorna app e meteo", "Se hai appena installato qualcosa", "")}
+      </div>
+
+      <div class="sec mono">05 / SISTEMA</div>
+      <div class="list">
+        ${S.update ? "" : row("update", "Aggiornamenti", updateLine(), "")}
+        ${row("home", "Tasto Home porta a BIOS", "Si attiva una volta in Accessibilità", home ? "ATTIVO" : "DA ATTIVARE")}
+        ${row("stock", "Apri la home di Google TV", "Per 10 minuti il tasto Home torna a Google", "")}
+        ${row("system", "Impostazioni della TV", "", "")}
       </div>`);
+  }
+  /* Re-render the settings panel in place, keeping the focused row. */
+  function refreshSettingsRow() {
+    if (!S.panel || !$("panel").querySelector('[data-act="theme"]')) return;
+    const act = (S.panel.items[S.panel.idx] || {}).dataset ? S.panel.items[S.panel.idx].dataset.act : null;
+    const top = $("panel").scrollTop;
+    openSettings();
+    const k = S.panel.items.findIndex(e => e.dataset.act === act);
+    S.panel.idx = k >= 0 ? k : 0; $("panel").scrollTop = top; applyFocus();
   }
   function openAgenda() {
     const evs = upcomingEvents().filter(e => e.start - Date.now() < 7 * 86400000);
@@ -684,7 +723,9 @@
       if (!ok) toast("IMPOSTAZIONI → SISTEMA → ACCESSIBILITÀ → BIOS TV · TASTO HOME");
     }
     else if (act === "update") {
-      if (S.update) B.installUpdate(); else { B.checkUpdate(); toast("CONTROLLO AGGIORNAMENTI…"); }
+      if (S.update) { S.updMsg = "Scarico la nuova versione…"; B.installUpdate(); }
+      else { S.updMsg = "Controllo in corso…"; B.checkUpdate && B.checkUpdate(); }
+      refreshSettingsRow();
     }
     else if (act === "refresh") { B.requestApps(true); loadWeather(); toast("AGGIORNAMENTO IN CORSO"); }
     else if (act === "stock") B.openStockHome();
@@ -870,7 +911,8 @@
     _apps(list) { S.allApps = Array.isArray(list) ? list : []; renderApps(); },
     refreshApps() { B.requestApps(false); },
     updateAvailable(n) {
-      if (S.update === n) return;
+      S.updMsg = "";
+      if (S.update === n) { refreshSettingsRow(); return; }
       S.update = n;
       if (S.study || S.saver) return;                                   // ask later, not mid-session
       openPanel(`
@@ -882,7 +924,16 @@
           <button class="pbtn" data-act="later">Più tardi <span class="st">INDIETRO</span></button>
         </div>`);
     },
-    updateFailed(msg) { toast("AGGIORNAMENTO NON RIUSCITO" + (msg ? " · " + String(msg).slice(0, 40).toUpperCase() : "")); },
+    updateFailed(msg) {
+      S.updMsg = "Non riuscito" + (msg ? ": " + String(msg).slice(0, 60) : "") + " · OK per riprovare";
+      toast("AGGIORNAMENTO NON RIUSCITO"); refreshSettingsRow();
+    },
+    updateNone() { S.updMsg = `Hai già l'ultima versione (build ${B.currentBuild ? B.currentBuild() : "—"})`; refreshSettingsRow(); },
+    updateDownloading() { S.updMsg = "Scarico la nuova versione… poi conferma con Aggiorna"; refreshSettingsRow(); },
+    updateNeedsPermission() {
+      S.updMsg = "Consenti a BIOS TV di installare app, poi riprova";
+      toast("CONSENTI A BIOS TV DI INSTALLARE APP · POI TORNA E PREMI OK"); refreshSettingsRow();
+    },
     ttsState(s) { $("orb").classList.toggle("speaking", s === "start"); },
     onData() {
       loadData(); applyTheme(); renderCards(); renderApps(); greet({ voice: false, animate: false, keep: true });

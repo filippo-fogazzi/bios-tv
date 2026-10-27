@@ -322,3 +322,18 @@ body.saver .mist { opacity: 1; }
 .mist i:nth-child(2) { top: 700px; opacity: .8; animation: mistdrift 95s linear infinite reverse; }
 @keyframes mistdrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
 body.night .mist i { opacity: .5; }
+
+/* Settings v2: sections, a title and a one-line explanation per row */
+.panel .sec { margin: 34px 0 0 6px; font-size: 14px; color: var(--ink-3); }
+.panel .sec + .info, .panel .sec + .list { margin-top: 12px; }
+.panel .info + .list { margin-top: 10px; }
+.panel .list { gap: 6px; }
+.pbtn { height: auto; min-height: 72px; padding: 14px 24px; gap: 20px; }
+.pbtn .t { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pbtn .t b { font-weight: 400; font-size: 25px; color: var(--ink); }
+.pbtn .t small { font-size: 17px; color: var(--ink-3); line-height: 1.3; }
+.pbtn .st { flex: none; }
+.pbtn.focused .t b { color: var(--bg); }
+.pbtn.focused .t small { color: rgba(9,10,11,.62); }
+.panel h2 { font-size: 72px; }
+.panel .info .big { font-size: 30px; }

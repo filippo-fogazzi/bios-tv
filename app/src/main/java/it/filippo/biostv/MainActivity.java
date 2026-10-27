@@ -351,15 +351,26 @@ public class MainActivity extends Activity {
                     Updater.Release r = Updater.check(MainActivity.this);
                     pendingUpdate = r;
                     if (r != null) js("window.app&&app.updateAvailable(" + r.build + ")");
-                } catch (Exception ignored) {
-                    // offline or GitHub unreachable: try again later
+                    else js("window.app&&app.updateNone&&app.updateNone()");
+                } catch (Exception e) {
+                    js("window.app&&app.updateFailed(" + JSONObject.quote("GitHub non raggiungibile") + ")");
                 }
             });
         }
 
         @JavascriptInterface public void installUpdate() {
             Updater.Release r = pendingUpdate;
-            if (r == null) return;
+            if (r == null) { checkUpdate(); return; }
+            // Android requires "install unknown apps" for BIOS TV once; send the user there if missing.
+            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                js("window.app&&app.updateNeedsPermission()");
+                runOnUiThread(() -> {
+                    if (!safeStart(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:" + getPackageName()))))
+                        if (!safeStart(new Intent(Settings.ACTION_SECURITY_SETTINGS))) safeStart(new Intent(Settings.ACTION_SETTINGS));
+                });
+                return;
+            }
+            js("window.app&&app.updateDownloading()");
             io.execute(() -> {
                 try {
                     Updater.install(MainActivity.this, r);

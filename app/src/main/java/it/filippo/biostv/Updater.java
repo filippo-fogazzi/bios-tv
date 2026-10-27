@@ -30,6 +30,22 @@ final class Updater {
 
     private Updater() {}
 
+    /**
+     * Called after the new version is installed (package-replaced broadcast, or the Home watcher
+     * reconnecting). Reopens the launcher once, only if this update was started from inside the app.
+     */
+    static void reopenIfJustUpdated(Context c) {
+        android.content.SharedPreferences p = c.getSharedPreferences("biostv", Context.MODE_PRIVATE);
+        long at = p.getLong("updatingAt", 0);
+        if (at == 0 || System.currentTimeMillis() - at > 15 * 60 * 1000) return;
+        p.edit().remove("updatingAt").commit();
+        try {
+            c.startActivity(new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception ignored) {
+            // Background start refused: the Home button still brings BIOS back.
+        }
+    }
+
     static int currentBuild(Context c) {
         try {
             PackageInfo pi = c.getPackageManager().getPackageInfo(c.getPackageName(), 0);
@@ -93,6 +109,7 @@ final class Updater {
         } finally {
             conn.disconnect();
         }
+        c.getSharedPreferences("biostv", Context.MODE_PRIVATE).edit().putLong("updatingAt", System.currentTimeMillis()).commit();
         Intent status = new Intent(ACTION_STATUS).setPackage(c.getPackageName());
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | (android.os.Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
         PendingIntent pending = PendingIntent.getBroadcast(c, id, status, flags);
