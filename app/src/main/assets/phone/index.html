@@ -119,6 +119,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
           <label><span>Sfondo</span><select id="pScene"><option value="auto">Ogni giorno diverso</option><option value="mountains">Montagne</option><option value="dunes">Dune</option><option value="lake">Lago</option><option value="hills">Colline</option><option value="waves">Onde</option></select></label>
           <label><span>Orologio</span><select id="pClock"><option value="apple">Apple</option><option value="thin">Sottile</option></select></label>
         </div>
+        <label><span>Fuso orario</span><select id="pTz"><option value="Europe/Rome">Italia (Europe/Rome)</option><option value="auto">Quello della TV</option></select></label>
         <label><span>Salvaschermo</span><select id="pSaver"><option value="3">Dopo 3 minuti</option><option value="5">Dopo 5 minuti</option><option value="10">Dopo 10 minuti</option><option value="0">Spento</option></select></label>
         <label><span>Sfondo personale (link a un'immagine, facoltativo)</span><input id="pWall" inputmode="url" placeholder="https://…"></label>
       </div>
@@ -236,7 +237,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     $("bToken").value = data.bios.token || "";
     $("pName").value = p.name; $("pCity").value = p.city; $("pVoice").checked = p.voice !== false;
     $("pQf").value = p.quietFrom; $("pQt").value = p.quietTo; $("pTheme").value = p.theme; $("pWall").value = p.wallpaper || "";
-    $("pScene").value = p.scene || "auto"; $("pClock").value = p.clockStyle || "apple"; $("pSaver").value = String(p.saverMin ?? 3);
+    $("pScene").value = p.scene || "auto"; $("pClock").value = p.clockStyle || "apple"; $("pSaver").value = String(p.saverMin ?? 3); $("pTz").value = p.timezone || "Europe/Rome";
     $("eDate").value = ymd(new Date());
     $("tTarget").value = data.training.target;
     $("days").innerHTML = DAYS.map(([k, n]) => `<div class="day"><span class="mono">${n}</span><input data-day="${k}" placeholder="Riposo" value="${esc(data.training.plan[k] || "")}"></div>`).join("");
@@ -283,7 +284,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     d.profile.voice = $("pVoice").checked;
     d.profile.quietFrom = $("pQf").value; d.profile.quietTo = $("pQt").value;
     d.profile.theme = $("pTheme").value; d.profile.wallpaper = $("pWall").value.trim();
-    d.profile.scene = $("pScene").value; d.profile.clockStyle = $("pClock").value; d.profile.saverMin = Number($("pSaver").value);
+    d.profile.scene = $("pScene").value; d.profile.clockStyle = $("pClock").value; d.profile.saverMin = Number($("pSaver").value); d.profile.timezone = $("pTz").value;
     const cutoff = ymd(new Date(Date.now() - 30 * 86400000));
     d.events = data.events.filter(e => e.date >= cutoff);
     d.countdowns = data.countdowns.filter(c => c.date >= ymd(new Date()));

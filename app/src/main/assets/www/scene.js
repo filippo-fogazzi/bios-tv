@@ -195,7 +195,7 @@
     return SCENES[day % SCENES.length];
   }
 
-  function draw(canvas, now, sun, kind) {
+  function draw(canvas, now, sun, kind, variant) {
     const W = canvas.width = 1920, H = canvas.height = 1080;
     const x = canvas.getContext("2d");
     const P = palette(now, sun);
@@ -229,7 +229,7 @@
       x.fillStyle = rgb(P.glow, P.isNight ? 0.85 : 0.95); x.fill();
     }
 
-    const r = rng(seed + SCENES.indexOf(scene) * 97);
+    const r = rng(seed + SCENES.indexOf(scene) * 97 + (variant || 0));
     if (scene === "mountains") mountains(x, W, H, P, r);
     else if (scene === "dunes") dunes(x, W, H, P, r);
     else if (scene === "lake") lake(x, W, H, P, r, { x: bodyX, night: P.isNight });

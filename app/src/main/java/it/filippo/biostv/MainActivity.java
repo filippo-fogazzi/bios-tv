@@ -338,6 +338,11 @@ public class MainActivity extends Activity {
             return false;
         }
 
+        /** The TV system's UTC offset right now, in minutes (used when the zone is set to "auto"). */
+        @JavascriptInterface public int tzOffsetMinutes() {
+            return java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60000;
+        }
+
         @JavascriptInterface public int currentBuild() { return Updater.currentBuild(MainActivity.this); }
 
         @JavascriptInterface public void checkUpdate() {

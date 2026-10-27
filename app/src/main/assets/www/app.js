@@ -62,6 +62,7 @@
     d.countdowns = d.countdowns || [];
     d.apps = Object.assign({ order: [], hidden: [] }, d.apps);
     d.bios = Object.assign({ token: "" }, d.bios);
+    if (window.BiosClock) window.BiosClock.set(d.profile.timezone || "Europe/Rome");
     S.data = d;
     return d;
   }
@@ -709,16 +710,38 @@
     renderSaver();
     document.body.classList.add("saver");
     clearInterval(S.saverT);
-    S.saverT = setInterval(moveSaver, 60000);                         // drift: never burn the same pixels
+    S.saverKind = S.sceneName;
+    if (isLandscape() && !document.body.classList.contains("has-wallpaper"))
+      S.saverT = setInterval(nextSaverScene, 75000);                  // a new landscape every 75 s
+  }
+  /* Draw the next landscape on the hidden canvas, then cross-fade (opacity only). */
+  function nextSaverScene() {
+    const kinds = window.Scene.SCENES.filter(k => k !== S.saverKind);
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    S.saverKind = kind;
+    S.saverVar = (S.saverVar || 0) + 1;
+    const b = $("sceneB"), showB = !b.classList.contains("show");
+    const target = showB ? b : $("scene");
+    try { window.Scene.draw(target, new Date(), S.weather && S.weather.sun, kind, S.saverVar * 131); } catch (e) { return; }
+    b.classList.toggle("show", showB);
   }
   function stopSaver() {
     S.saver = false;
     clearInterval(S.saverT);
     document.body.classList.remove("saver");
+    endSaverScenes();
     resetIdle();
     if (Date.now() - S.lastSpokenAt > 3 * 3600000) greet({ voice: true });
   }
-  const SAVER_SPOTS = [[96, 800], [1240, 800], [96, 70], [1240, 70], [660, 430]];
+  function endSaverScenes() {
+    const b = $("sceneB");
+    if (b.classList.contains("show") || S.saverVar) {
+      b.classList.remove("show");
+      setTimeout(drawScene, 3100);                                      // back to today's scene once B has faded
+    }
+    S.saverVar = 0;
+  }
+  const SAVER_SPOTS = [[96, 800]];                                      // fixed, bottom-left
   function renderSaver() {
     const now = new Date(), w = S.weather;
     $("saverClock").textContent = `${now.getHours()}:${pad(now.getMinutes())}`;
@@ -728,14 +751,7 @@
     c.style.left = x + "px"; c.style.top = y + "px";
     d.style.left = (x + 8) + "px"; d.style.top = (y + 162) + "px";
   }
-  function moveSaver() {
-    $("saver").classList.add("moving");
-    setTimeout(() => {
-      S.saverSpot = ((S.saverSpot || 0) + 1 + Math.floor(Math.random() * 3)) % SAVER_SPOTS.length;
-      renderSaver();
-      $("saver").classList.remove("moving");
-    }, 950);
-  }
+
 
   /* ------------------------------------------------------------------ study session */
   function studySubject() {
@@ -876,7 +892,7 @@
     },
     onWake() { S.woke = true; setTimeout(() => { if (S.woke) app.onResume(); }, 1500); },
     onResume() {
-      if (S.saver) { S.saver = false; clearInterval(S.saverT); document.body.classList.remove("saver"); }
+      if (S.saver) { S.saver = false; clearInterval(S.saverT); document.body.classList.remove("saver"); endSaverScenes(); }
       resetIdle();
       if (S.panel) closePanel();
       if (S.moveMode) endMove();

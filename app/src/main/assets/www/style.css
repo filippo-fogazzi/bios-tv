@@ -307,3 +307,18 @@ body.study-break .study-ring .bar { stroke: #b9c4a0; }
 .tile .art.input.ps svg { width: 70px; height: 70px; stroke: #fff; stroke-width: 1.6; position: relative; }
 .tile .art.input.ps .nm { position: relative; font-family: "InterDisplay"; font-weight: 700; font-size: 26px; letter-spacing: .06em; color: #fff; }
 .tile .art.input.ps .sub { position: relative; font-family: "BiosMono"; font-size: 11px; letter-spacing: .28em; color: rgba(255,255,255,.7); margin-top: -6px; }
+
+/* Screensaver v2: fixed clock, scenes that cross-fade, drifting mist (all composited layers) */
+.scene-b { opacity: 0; transition: opacity 3s ease; }
+.theme-landscape .scene-b { display: block; }
+.scene-b.show { opacity: 1; }
+body.saver .scene-b { animation: kenburns 90s ease-in-out infinite alternate-reverse; will-change: transform, opacity; }
+.mist { position: absolute; inset: 0; overflow: hidden; opacity: 0; transition: opacity 3s ease; pointer-events: none; }
+body.saver .mist { opacity: 1; }
+.mist i { position: absolute; left: 0; width: 200%; height: 340px; will-change: transform;
+  background: radial-gradient(40% 50% at 25% 50%, rgba(255,255,255,.10), transparent 70%),
+              radial-gradient(35% 45% at 70% 55%, rgba(255,255,255,.08), transparent 70%); }
+.mist i:nth-child(1) { top: 560px; animation: mistdrift 140s linear infinite; }
+.mist i:nth-child(2) { top: 700px; opacity: .8; animation: mistdrift 95s linear infinite reverse; }
+@keyframes mistdrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
+body.night .mist i { opacity: .5; }
