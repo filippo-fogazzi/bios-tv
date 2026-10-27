@@ -90,7 +90,9 @@ final class AppRepo {
                 a.input = true;
                 a.inputId = i.getId();
                 a.pkg = "input:" + i.getId();
-                a.label = label == null ? "HDMI" : label.toString();
+                a.label = label == null ? "HDMI" : label.toString().trim();
+                // Bare ports ("HDMI 1", "HDMI 2") are noise: keep only named devices such as the PS5.
+                if (!cecDevice && a.label.matches("(?i)^(hdmi|ingresso|input)\\s*\\d*(\\s*\\(.*\\))?$")) continue;
                 res.add(a);
             }
         } catch (Throwable t) {
