@@ -21,6 +21,14 @@
     });
   }
   async function getJSON(url) { return JSON.parse(await http(url)); }
+  function httpPost(url, headers, body) {
+    return new Promise((resolve, reject) => {
+      const id = "p" + (++reqId);
+      pending[id] = { resolve, reject };
+      B.httpPost(id, url, JSON.stringify(headers), body);
+      setTimeout(() => { if (pending[id]) { delete pending[id]; reject(new Error("timeout")); } }, 15000);
+    });
+  }
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem("bios." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -47,12 +55,13 @@
   function loadData() {
     let d;
     try { d = JSON.parse(B.getData()); } catch (e) { d = {}; }
-    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "", scene: "auto", clockStyle: "apple" }, d.profile);
+    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "", scene: "auto", clockStyle: "apple", saverMin: 3 }, d.profile);
     d.events = d.events || [];
     d.training = Object.assign({ target: 4, plan: {}, done: [] }, d.training);
     d.focus = d.focus || { title: "", note: "" };
     d.countdowns = d.countdowns || [];
     d.apps = Object.assign({ order: [], hidden: [] }, d.apps);
+    d.bios = Object.assign({ token: "" }, d.bios);
     S.data = d;
     return d;
   }
@@ -75,25 +84,74 @@
     if (e.end) { const [eh, em] = e.end.split(":").map(Number); end = new Date(y, m - 1, d, eh || 0, em || 0); if (end < start) end.setDate(end.getDate() + 1); }
     return { title: e.title || "Impegno", start, end, kind: e.kind || "" };
   }
+  /* All-caps calendar titles ("CHIMICA E PROPEDEUTICA BIOCHIMICA") read better in sentence case. */
+  function niceTitle(t) {
+    t = String(t || "").trim();
+    if (t.length < 4 || t !== t.toUpperCase() || !/[A-ZÀ-Ý]/.test(t)) return t;
+    const low = t.toLowerCase();
+    return low.charAt(0).toUpperCase() + low.slice(1);
+  }
   function upcomingEvents() {
     const now = new Date();
-    return S.data.events.map(parseEvent).filter(e => e && (e.end || new Date(e.start.getTime() + 3600000)) > now)
-      .sort((a, b) => a.start - b.start);
+    const local = S.data.events;
+    const bios = S.bios ? S.bios.events || [] : [];
+    const seen = new Set();
+    return local.concat(bios).map(parseEvent).filter(e => {
+      if (!e || (e.end || new Date(e.start.getTime() + 3600000)) <= now) return false;
+      const k = e.start.getTime() + "|" + e.title.toLowerCase();                 // same event in both sources
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    }).map(e => ({ ...e, title: niceTitle(e.title) })).sort((a, b) => a.start - b.start);
   }
   function weekStart(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
   function trainingInfo() {
     const now = new Date(), t = S.data.training;
     const ws = weekStart(now);
+    const planToday = (t.plan && t.plan[String(now.getDay())] || "").trim();
+    const inWeek = s => { const [y, m, d] = String(s).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d) >= ws; };
+    if (S.bios) {
+      // Linked: completed workouts come from BIOS (synced from Motra), not from the TV.
+      const days = new Set((S.bios.workouts || []).map(w => String(w.date).slice(0, 10)));
+      const next = String(S.bios.nextRoutine || "").replace(/^[A-Z]\s*[—-]\s*/, "").split(":")[0].trim();
+      return {
+        linked: true, planToday, next,
+        doneToday: days.has(ymd(now)),
+        doneWeek: Array.from(days).filter(inWeek).length,
+        target: Number(S.bios.trainingTarget) || Number(t.target) || 0
+      };
+    }
     const done = (t.done || []);
-    const doneWeek = done.filter(s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d) >= ws; }).length;
     return {
-      planToday: (t.plan && t.plan[String(now.getDay())] || "").trim(),
-      doneToday: done.includes(ymd(now)),
-      doneWeek, target: Number(t.target) || 0
+      planToday, doneToday: done.includes(ymd(now)),
+      doneWeek: done.filter(inWeek).length, target: Number(t.target) || 0
     };
   }
   function countdowns() {
-    return S.data.countdowns.filter(c => c && c.date).map(c => { const [y, m, d] = c.date.split("-").map(Number); return { title: c.title, date: new Date(y, m - 1, d) }; });
+    const exams = S.bios ? (S.bios.exams || []).map(x => ({ title: x.title, date: x.date })) : [];
+    return S.data.countdowns.concat(exams).filter(c => c && c.date).map(c => { const [y, m, d] = String(c.date).slice(0, 10).split("-").map(Number); return { title: c.title, date: new Date(y, m - 1, d) }; });
+  }
+
+  /* ------------------------------------------------------------------ BIOS sync (read-only) */
+  // Public project URL and publishable key: safe to ship; access is gated by the per-TV code.
+  const BIOS_URL = "https://cismejelmqysdmpjxozo.supabase.co/rest/v1/rpc/bios_tv_snapshot";
+  const BIOS_KEY = "sb_publishable_cNTXYcp1vO-Et2kk7gi3bQ_HLaJ0ptK";
+  S.bios = store.get("biosSnap", null);
+  function biosToken() { return ((S.data.bios || {}).token || "").trim(); }
+  async function loadBios() {
+    const token = biosToken();
+    if (!token) { S.bios = null; S.biosState = "off"; return; }
+    try {
+      const body = await httpPost(BIOS_URL, { apikey: BIOS_KEY, "Content-Type": "application/json" }, JSON.stringify({ p_token: token }));
+      const snap = JSON.parse(body);
+      if (!snap || !Array.isArray(snap.events)) throw new Error("bad");
+      S.bios = snap; S.biosState = "ok"; S.biosAt = Date.now();
+      store.set("biosSnap", snap);
+    } catch (e) {
+      S.biosState = /invalid token|28000|401|403/.test(String(e && e.message)) ? "bad" : "offline";
+      if (S.biosState === "bad") { S.bios = null; store.set("biosSnap", null); }
+    }
+    renderCards();
+    refreshGreeting();
   }
   function relDay(d) {
     const now = new Date();
@@ -124,7 +182,7 @@
     const c = $("clock");
     c.classList.toggle("apple", apple);
     const t = `${apple ? now.getHours() : pad(now.getHours())}:${pad(now.getMinutes())}`;
-    if (c.textContent !== t) c.textContent = t;                        // repaint only when the minute changes
+    if (c.textContent !== t) { c.textContent = t; if (S.saver) renderSaver(); }  // repaint only when the minute changes
     const w = S.weather;
     const wx = isLandscape() && w ? `  ·  ${Math.round(w.temp)}° ${J.wmo(w.code).text}` : "";
     const d = (J.longDate(now) + wx).toUpperCase();
@@ -154,7 +212,7 @@
 
   function briefing(returning) {
     return J.compose({
-      now: new Date(), name: S.data.profile.name, weather: S.weather,
+      now: new Date(), name: S.data.profile.name || (S.bios && String(S.bios.profileName || "").split(" ")[0]) || "", weather: S.weather,
       events: upcomingEvents(), training: trainingInfo(), focus: S.data.focus,
       countdowns: countdowns(), returning
     });
@@ -312,12 +370,19 @@
     const cds = countdowns().map(c => ({ ...c, days: Math.ceil((c.date - new Date(new Date().toDateString())) / 86400000) })).filter(c => c.days >= 0).sort((a, b) => a.days - b.days);
     const w = S.weather;
     const dots = tr.target ? `<div class="dots">${Array.from({ length: Math.min(tr.target, 7) }, (_, i) => `<i class="${i < tr.doneWeek ? "on" : ""}"></i>`).join("")}</div>` : "";
-    const focusSub = S.data.focus.note ? esc(S.data.focus.note)
+    const stToday = studyToday();
+    const focusSub = stToday.n ? `${stToday.n} ${stToday.n === 1 ? "sessione" : "sessioni"} oggi · ${stToday.min} min`
+      : S.data.focus.note ? esc(S.data.focus.note)
       : cds.length ? (cds[0].days === 0 ? `Oggi: ${esc(cds[0].title)}` : `Tra ${cds[0].days} g · ${esc(cds[0].title)}`) : "Impostalo dal telefono";
     const cards = [
       { act: "agenda", k: "IL PROSSIMO IMPEGNO", v: ev ? esc(ev.title) : "LIBERO",
         s: ev ? `${J.hm(ev.start).padStart(5, "0")}${ev.end ? "–" + J.hm(ev.end).padStart(5, "0") : ""} · ${relDay(ev.start)}` : "Nessun impegno in arrivo" },
-      { act: "training", k: "ALLENAMENTO · OGGI", v: tr.planToday ? esc(tr.planToday) : "RIPOSO", extra: dots +
+      tr.linked
+        ? { act: "training", k: tr.doneToday ? "ALLENAMENTO · OGGI" : "PROSSIMA SCHEDA",
+            v: esc(tr.planToday || tr.next || (tr.doneToday ? "FATTO" : "—")),
+            extra: dots + (tr.doneToday ? '<span class="badge mono ok">FATTO</span>' : ""),
+            s: `${tr.doneWeek} di ${tr.target} questa settimana` }
+        : { act: "training", k: "ALLENAMENTO · OGGI", v: tr.planToday ? esc(tr.planToday) : "RIPOSO", extra: dots +
           (tr.doneToday ? '<span class="badge mono ok">FATTO</span>' : ""),
         s: tr.doneToday ? `${tr.doneWeek} di ${tr.target} questa settimana` : tr.planToday ? "OK per segnarlo fatto" : "Recupero" },
       { act: "focus", k: "FOCUS", v: S.data.focus.title ? esc(S.data.focus.title) : "DA DEFINIRE", s: focusSub },
@@ -338,7 +403,7 @@
     "com.google.android.youtube.tvmusic", "com.plexapp.android", "org.xbmc.kodi"];
   function sortApps() {
     const { order, hidden } = S.data.apps;
-    const rank = p => { const o = order.indexOf(p); if (o >= 0) return o; const q = PRIORITY.indexOf(p); return q >= 0 ? 1000 + q : 5000; };
+    const rank = p => { const o = order.indexOf(p); if (o >= 0) return o; if (p.startsWith("input:")) return 900; const q = PRIORITY.indexOf(p); return q >= 0 ? 1000 + q : 5000; };
     S.apps = S.allApps.filter(a => !hidden.includes(a.pkg))
       .sort((a, b) => rank(a.pkg) - rank(b.pkg) || a.label.localeCompare(b.label, "it"));
   }
@@ -347,13 +412,20 @@
     const box = $("apps");
     if (!S.apps.length) { box.innerHTML = '<div class="apps-empty">Caricamento app…</div>'; return; }
     box.innerHTML = S.apps.map((a, i) => {
-      const art = a.banner ? `<div class="art"><img src="${a.banner}" alt=""></div>`
+      const art = a.input ? `<div class="art input">${inputIcon(a.label)}<div class="nm">${J.esc(a.label)}</div></div>`
+        : a.banner ? `<div class="art"><img src="${a.banner}" alt=""></div>`
         : `<div class="art icon-only">${a.icon ? `<img src="${a.icon}" alt="">` : ""}<div class="nm">${J.esc(a.label)}</div></div>`;
       return `<div class="tile focusable" data-row="apps" data-idx="${i}" data-pkg="${a.pkg}"><div class="shade"></div>${art}<div class="name">${J.esc(a.label)}</div></div>`;
     }).join("");
     S.rowIdx.apps = Math.min(S.rowIdx.apps, S.apps.length - 1);
     if (S.focus.row === "apps") S.focus.idx = S.rowIdx.apps;
     applyFocus(false);
+  }
+  function inputIcon(label) {
+    const game = /ps\s?[345]|playstation|xbox|switch|console|gioc/i.test(label);
+    return game
+      ? '<svg viewBox="0 0 64 64"><path d="M20 22h24a12 12 0 0 1 11.7 9.4l2.9 13.2a5.5 5.5 0 0 1-9.6 4.6L43 42H21l-6 7.2a5.5 5.5 0 0 1-9.6-4.6l2.9-13.2A12 12 0 0 1 20 22z"/><path d="M21 30v8M17 34h8"/><circle cx="43" cy="31" r="1.6"/><circle cx="47" cy="35" r="1.6"/></svg>'
+      : '<svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="30" rx="4"/><path d="M24 52h16M32 44v8"/></svg>';
   }
   function tintFor(tile) {
     const pkg = tile.dataset.pkg;
@@ -392,7 +464,14 @@
   function applyFocus(withTint = true) {
     document.querySelectorAll(".focused").forEach(e => e.classList.remove("focused"));
     if (S.panel) {
-      const el = S.panel.items[S.panel.idx]; if (el) el.classList.add("focused");
+      const el = S.panel.items[S.panel.idx];
+      if (el) {
+        el.classList.add("focused");
+        // Scroll only the panel (scrollIntoView would also scroll the stage itself).
+        const p = $("panel"), top = el.offsetTop, bottom = top + el.offsetHeight;
+        if (top < p.scrollTop + 40) p.scrollTop = top - 40;
+        else if (bottom > p.scrollTop + p.clientHeight - 40) p.scrollTop = bottom - p.clientHeight + 40;
+      }
       return;
     }
     const els = rowEls(S.focus.row);
@@ -464,11 +543,12 @@
     if (S.focus.row === "apps") { B.launch(el.dataset.pkg); return; }
     const act = el.dataset.act;
     if (act === "agenda") openAgenda();
-    else if (act === "training") toggleTraining();
-    else if (act === "focus") {
-      const f = S.data.focus;
-      say(f.title ? `Il focus di questa settimana è ${f.title}.${f.note ? " " + f.note + "." : ""}` : "Non hai ancora impostato un focus. Puoi farlo dal telefono.");
-    } else if (act === "weather") { loadWeather(); say(J.weatherReport(S.weather)); }
+    else if (act === "training") {
+      const tr = trainingInfo();
+      if (!tr.linked) toggleTraining();
+      else say(`${tr.doneToday ? "Oggi ti sei già allenato. " : ""}Questa settimana ${tr.doneWeek} ${tr.doneWeek === 1 ? "allenamento" : "allenamenti"} su ${tr.target}.${tr.next ? ` Prossima scheda: ${tr.next}.` : ""}`);
+    }
+    else if (act === "focus") openStudyPicker(); else if (act === "weather") { loadWeather(); say(J.weatherReport(S.weather)); }
   }
   function toggleTraining() {
     const today = ymd(new Date());
@@ -506,6 +586,7 @@
   }
   function closePanel() {
     S.panel = null;
+    stage.scrollLeft = 0; stage.scrollTop = 0;
     document.body.classList.remove("panel-open");
     applyFocus();
   }
@@ -526,10 +607,12 @@
         <div class="row"><div class="big">${J.esc(info.url || "Rete non disponibile")}</div><div class="pin">${J.esc(info.pin || "")}</div></div>
       </div>
       <div class="list">
+        <button class="pbtn" data-act="bios">BIOS <span class="st">${{ ok: "COLLEGATO", bad: "CODICE ERRATO", offline: "NON RAGGIUNGIBILE", off: "DA COLLEGARE" }[S.biosState || (biosToken() ? "offline" : "off")]}</span></button>
         <button class="pbtn" data-act="voice">Voce di benvenuto <span class="st">${S.data.profile.voice !== false ? "ATTIVA" : "SPENTA"}</span></button>
         <button class="pbtn" data-act="theme">Tema <span class="st">${isLandscape() ? "PAESAGGIO" : "MONOLITH"}</span></button>
         <button class="pbtn" data-act="scene">Sfondo <span class="st">${sceneLabel()}</span></button>
         <button class="pbtn" data-act="clock">Orologio <span class="st">${S.data.profile.clockStyle === "thin" ? "SOTTILE" : "APPLE"}</span></button>
+        <button class="pbtn" data-act="saver">Salvaschermo <span class="st">${saverMinutes() ? "DOPO " + saverMinutes() + " MIN" : "SPENTO"}</span></button>
         <button class="pbtn" data-act="test">Ascolta il briefing <span class="st">OK</span></button>
         <button class="pbtn" data-act="home">Tasto Home apre BIOS <span class="st">${home ? "ATTIVO" : "DA ATTIVARE"}</span></button>
         <button class="pbtn" data-act="refresh">Aggiorna meteo e app <span class="st">OK</span></button>
@@ -552,8 +635,19 @@
       <div class="agenda">${html || '<div class="empty">Niente in programma. Aggiungi impegni dal telefono.</div>'}</div>`);
   }
   function panelAction(act) {
-    if (act === "voice") { updateData(d => { d.profile.voice = d.profile.voice === false; }); openSettings(); S.panel.idx = 0; applyFocus(); }
-    else if (act === "theme") { updateData(d => { d.profile.theme = isLandscape() ? "monolith" : "landscape"; }); applyTheme(); renderClock(); openSettings(); S.panel.idx = 1; applyFocus(); }
+    if (act === "voice") { const i = S.panel.idx; updateData(d => { d.profile.voice = d.profile.voice === false; }); openSettings(); S.panel.idx = i; applyFocus(); }
+    else if (act === "theme") { updateData(d => { d.profile.theme = isLandscape() ? "monolith" : "landscape"; }); applyTheme(); renderClock(); const i = S.panel.idx; openSettings(); S.panel.idx = i; applyFocus(); }
+    else if (act.startsWith("study:")) { const [, m, b] = act.split(":"); startStudy(Number(m), Number(b)); }
+    else if (act === "readFocus") {
+      const f = S.data.focus;
+      B.speak(f.title ? `Il focus di questa settimana è ${f.title}.${f.note ? " " + f.note + "." : ""}` : "Non hai ancora impostato un focus. Puoi farlo dal telefono.");
+    }
+    else if (act === "saver") {
+      const i = S.panel.idx, steps = [3, 5, 10, 0];
+      updateData(d => { d.profile.saverMin = steps[(steps.indexOf(Number(d.profile.saverMin)) + 1) % steps.length]; });
+      resetIdle(); openSettings(); S.panel.idx = i; applyFocus();
+    }
+    else if (act === "bios") { loadBios().then(() => { const i = S.panel ? S.panel.idx : 0; openSettings(); S.panel.idx = i; applyFocus(); }); toast(biosToken() ? "SINCRONIZZAZIONE…" : "INSERISCI IL CODICE DAL TELEFONO"); }
     else if (act === "scene" || act === "clock") {
       const idx = S.panel.idx;
       updateData(d => {
@@ -575,6 +669,130 @@
     }
   }
 
+  /* ------------------------------------------------------------------ screensaver */
+  let idleT = null;
+  function saverMinutes() { const m = Number(S.data.profile.saverMin); return isNaN(m) ? 3 : m; }
+  function resetIdle() {
+    clearTimeout(idleT);
+    const m = saverMinutes();
+    if (m > 0) idleT = setTimeout(startSaver, m * 60000);
+  }
+  function startSaver() {
+    if (S.panel || S.study || S.moveMode) { resetIdle(); return; }
+    S.saver = true;
+    renderSaver();
+    document.body.classList.add("saver");
+    clearInterval(S.saverT);
+    S.saverT = setInterval(moveSaver, 60000);                         // drift: never burn the same pixels
+  }
+  function stopSaver() {
+    S.saver = false;
+    clearInterval(S.saverT);
+    document.body.classList.remove("saver");
+    resetIdle();
+    if (Date.now() - S.lastSpokenAt > 3 * 3600000) greet({ voice: true });
+  }
+  const SAVER_SPOTS = [[96, 800], [1240, 800], [96, 70], [1240, 70], [660, 430]];
+  function renderSaver() {
+    const now = new Date(), w = S.weather;
+    $("saverClock").textContent = `${now.getHours()}:${pad(now.getMinutes())}`;
+    $("saverDate").textContent = (J.longDate(now) + (w ? `  ·  ${Math.round(w.temp)}°` : "")).toUpperCase();
+    const [x, y] = SAVER_SPOTS[S.saverSpot || 0];
+    const c = $("saverClock"), d = $("saverDate");
+    c.style.left = x + "px"; c.style.top = y + "px";
+    d.style.left = (x + 8) + "px"; d.style.top = (y + 162) + "px";
+  }
+  function moveSaver() {
+    $("saver").classList.add("moving");
+    setTimeout(() => {
+      S.saverSpot = ((S.saverSpot || 0) + 1 + Math.floor(Math.random() * 3)) % SAVER_SPOTS.length;
+      renderSaver();
+      $("saver").classList.remove("moving");
+    }, 950);
+  }
+
+  /* ------------------------------------------------------------------ study session */
+  function studySubject() {
+    const now = Date.now();
+    const ev = upcomingEvents().find(e => e.start - now < 90 * 60000 && (e.end || e.start) > now);
+    return (ev && ev.title) || S.data.focus.title || "Studio";
+  }
+  function studyLog() { return store.get("studyLog", {}); }
+  function studyToday() { return studyLog()[ymd(new Date())] || { n: 0, min: 0 }; }
+  function openStudyPicker() {
+    const st = studyToday();
+    openPanel(`
+      <div class="k mono">BIOS / STUDIO</div>
+      <h2>SESSIONE<span class="muted">DI STUDIO.</span></h2>
+      <div class="info">
+        <div class="k mono">MATERIA</div><div class="big">${J.esc(studySubject())}</div>
+        ${st.n ? `<div class="k mono" style="margin-top:14px">OGGI · ${st.n} SESSIONI · ${st.min} MIN</div>` : ""}
+      </div>
+      <div class="list">
+        <button class="pbtn" data-act="study:50:10">Profonda <span class="st">50 + 10 MIN</span></button>
+        <button class="pbtn" data-act="study:25:5">Classica <span class="st">25 + 5 MIN</span></button>
+        <button class="pbtn" data-act="study:90:15">Lunga <span class="st">90 + 15 MIN</span></button>
+        <button class="pbtn" data-act="readFocus">Leggi il focus della settimana <span class="st">OK</span></button>
+      </div>`);
+  }
+  function startStudy(min, brk) {
+    closePanel();
+    const subject = studySubject();
+    S.study = { phase: "focus", min, brk, subject, total: min * 60000, endAt: Date.now() + min * 60000, paused: false };
+    document.body.classList.add("studying");
+    document.body.classList.remove("study-break", "study-paused");
+    $("studyTitle").textContent = subject;
+    if (B.keepAwake) B.keepAwake(true);
+    say(`Sessione di ${min} minuti${subject !== "Studio" ? ", " + subject : ""}. Ci sentiamo alla pausa.`);
+    clearInterval(S.studyT);
+    S.studyT = setInterval(tickStudy, 1000);
+    tickStudy();
+  }
+  function tickStudy() {
+    const st = S.study; if (!st) return;
+    const left = st.paused ? st.left : st.endAt - Date.now();
+    if (left <= 0) return studyPhaseEnd();
+    const sec = Math.ceil(left / 1000);
+    $("studyTime").textContent = `${Math.floor(sec / 60)}:${pad(sec % 60)}`;
+    $("studyBar").style.strokeDashoffset = (1859.8 * (1 - left / st.total)).toFixed(1);   // full ring that empties
+    const done = studyToday().n;
+    $("studyK").textContent = st.phase === "focus" ? `SESSIONE ${done + 1} DI OGGI` : "PAUSA";
+    $("studyPhase").textContent = st.paused ? "IN PAUSA" : st.phase === "focus" ? "CONCENTRAZIONE" : "RECUPERO";
+  }
+  function studyPhaseEnd() {
+    const st = S.study;
+    if (st.phase === "focus") {
+      const log = studyLog(), k = ymd(new Date()), t = log[k] || { n: 0, min: 0 };
+      log[k] = { n: t.n + 1, min: t.min + st.min };
+      Object.keys(log).filter(d => d < ymd(new Date(Date.now() - 30 * 86400000))).forEach(d => delete log[d]);
+      store.set("studyLog", log);
+      Object.assign(st, { phase: "break", total: st.brk * 60000, endAt: Date.now() + st.brk * 60000 });
+      document.body.classList.add("study-break");
+      say(`Sessione completata. Oggi ${log[k].min} minuti di studio. Pausa di ${st.brk} minuti.`);
+    } else {
+      Object.assign(st, { phase: "focus", total: st.min * 60000, endAt: Date.now() + st.min * 60000 });
+      document.body.classList.remove("study-break");
+      say("Pausa finita. Si riparte.");
+    }
+    tickStudy();
+  }
+  function toggleStudyPause() {
+    const st = S.study; if (!st) return;
+    if (st.paused) { st.endAt = Date.now() + st.left; st.paused = false; }
+    else { st.left = st.endAt - Date.now(); st.paused = true; }
+    document.body.classList.toggle("study-paused", st.paused);
+    tickStudy();
+  }
+  function stopStudy() {
+    clearInterval(S.studyT);
+    S.study = null;
+    document.body.classList.remove("studying", "study-break", "study-paused");
+    if (B.keepAwake) B.keepAwake(false);
+    const t = studyToday();
+    if (t.n) say(`Sessione chiusa. Oggi ${t.n} ${t.n === 1 ? "sessione" : "sessioni"}, ${t.min} minuti.`);
+    renderCards(); resetIdle();
+  }
+
   /* ------------------------------------------------------------------ lifecycle */
   function fit() {
     // innerWidth on a TV WebView grows to the 1920px stage itself; clientWidth is the real screen.
@@ -588,6 +806,13 @@
 
   const app = window.app = {
     key(k) {
+      if (S.saver) { stopSaver(); return; }                             // first press only wakes
+      resetIdle();
+      if (S.study) {
+        if (k === "ok") toggleStudyPause();
+        else if (k === "back") stopStudy();
+        return;
+      }
       if (k === "up" || k === "down" || k === "left" || k === "right") moveFocus(k);
       else if (k === "ok") activate();
       else if (k === "hold") startMove();
@@ -605,10 +830,13 @@
     onData() {
       loadData(); applyTheme(); renderCards(); renderApps(); greet({ voice: false, animate: false, keep: true });
       if ((S.data.geo && S.data.geo.query || "") !== (S.data.profile.city || "").trim()) loadWeather();
+      loadBios();
       toast("AGGIORNATO DAL TELEFONO");
     },
     onWake() { S.woke = true; setTimeout(() => { if (S.woke) app.onResume(); }, 1500); },
     onResume() {
+      if (S.saver) { S.saver = false; clearInterval(S.saverT); document.body.classList.remove("saver"); }
+      resetIdle();
       if (S.panel) closePanel();
       if (S.moveMode) endMove();
       renderClock();
@@ -617,6 +845,7 @@
       else if (Date.now() - S.lastGreetAt > 10 * 60000) greet({ voice: false });
       S.woke = false;
       if (!S.weather || Date.now() - S.weather.at > 20 * 60000) loadWeather();
+      if (!S.biosAt || Date.now() - S.biosAt > 5 * 60000) loadBios();
     }
   };
 
@@ -627,12 +856,14 @@
     renderClock(); renderCards(); renderApps();
     B.requestApps(false);
     // Wait briefly for the weather so the first briefing (and the voice) can mention it.
-    Promise.race([loadWeather(), new Promise(r => setTimeout(r, 3500))])
+    Promise.race([Promise.all([loadWeather(), loadBios()]), new Promise(r => setTimeout(r, 3500))])
       .then(() => greet({ voice: Date.now() - S.lastSpokenAt > 20 * 60000, fresh: true }));
     setInterval(renderClock, 5000);
     setInterval(() => { renderCards(); if (!S.typing) greet({ voice: false, animate: false, keep: true }); }, 60000);
     setInterval(loadWeather, 20 * 60000);
     setInterval(drawScene, 10 * 60000);
+    setInterval(loadBios, 10 * 60000);
+    resetIdle();
     if (PREVIEW) {
       const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "ok", Escape: "back", Backspace: "back", h: "hold", m: "menu" };
       window.addEventListener("keydown", e => { const k = map[e.key]; if (k) { e.preventDefault(); app.key(k); } });
@@ -647,7 +878,7 @@
     const in12 = new Date(d); in12.setDate(d.getDate() + 12);
     const demo = {
       version: 1, profile: Object.assign({ name: "Filippo", city: "", voice: true, quietFrom: "", quietTo: "" },
-        Object.fromEntries(new URLSearchParams(location.search))), geo: null,
+        Object.fromEntries(new URLSearchParams(location.search))), geo: null, bios: { token: /bios=1/.test(location.search) ? "tv_preview_token_0000000000000000000000" : "" },
       events: [{ id: "1", date: dd(t), start: "09:00", end: "11:00", title: "Biologia" }, { id: "2", date: dd(t), start: "15:00", end: "19:00", title: "Turno lavoro" }],
       training: { target: 4, plan: { 1: "Push", 3: "Pull", 5: "Legs", 6: "Upper", [d.getDay()]: "Legs" }, done: [] },
       focus: { title: "NODARA · MVP", note: "Ruota natale interattiva" },
@@ -668,7 +899,8 @@
     return {
       getData() { try { return localStorage.getItem("mock.data") || JSON.stringify(demo); } catch (e) { return JSON.stringify(demo); } },
       saveData(j) { try { localStorage.setItem("mock.data", j); } catch (e) { /* ignore */ } },
-      requestApps() { document.fonts.load("500 34px Inter").then(() => app._apps(names.map(([pkg, label, a, b]) => ({ pkg, label, banner: art(label, a, b) })))); },
+      requestApps() { document.fonts.load("500 34px Inter").then(() => app._apps([{ pkg: "input:hdmi2", label: "PS5", input: true }].concat(names.map(([pkg, label, a, b]) => ({ pkg, label, banner: art(label, a, b) }))))); },
+      keepAwake() {},
       launch(p) { toast("APRO " + p); },
       speak(t) { console.log("SPEAK:", t); app.ttsState("start"); setTimeout(() => app.ttsState("done"), Math.min(9000, t.length * 60)); },
       stopSpeak() {},
@@ -681,6 +913,14 @@
             daily: { weather_code: [0, 61, 3], temperature_2m_max: [17, 15, 16], temperature_2m_min: [8, 10, 9], precipitation_probability_max: [5, 80, 20] } })), 20);
         }
         fetch(url).then(r => r.text()).then(b => app._http(id, true, b)).catch(e => app._http(id, false, String(e)));
+      },
+      httpPost(id) {
+        if (!/bios=1/.test(location.search)) return setTimeout(() => app._http(id, false, "offline preview"), 20);
+        const n = new Date(), t2 = new Date(n); t2.setDate(n.getDate() + 1); const ds = x => x.toISOString().slice(0, 10);
+        setTimeout(() => app._http(id, true, JSON.stringify({ profileName: "Filippo Fogazzi", trainingTarget: 4, nextRoutine: "C — Upper body",
+          events: [{ date: ds(n), start: "21:00", end: "22:00", title: "RIPASSO FISICA", kind: "calendar" }, { date: ds(t2), start: "09:00", end: "11:00", title: "FISICA", kind: "calendar" },
+                   { date: ds(t2), start: "11:00", end: "13:00", title: "CHIMICA E PROPEDEUTICA BIOCHIMICA", kind: "calendar" }],
+          workouts: [{ date: ds(new Date(n.getTime() - 86400000)), title: "B — Pull" }], exams: [] })), 30);
       },
       getServerInfo() { return JSON.stringify({ url: "http://192.168.1.42:8765", pin: "4817" }); },
       openAccessibility() { toast("APRO ACCESSIBILITÀ"); }, openSystemSettings() {}, openStockHome() {},

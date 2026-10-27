@@ -199,6 +199,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void launch(String pkg) {
+            String inputId = AppRepo.inputIdFor(pkg);
+            if (inputId != null) {                        // HDMI: hand over to the TV's own input viewer
+                safeStart(new Intent(Intent.ACTION_VIEW, AppRepo.inputUri(inputId)));
+                return;
+            }
             Intent i = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
             if (i == null) i = getPackageManager().getLaunchIntentForPackage(pkg);
             if (i != null) safeStart(i);
@@ -210,6 +215,14 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void stopSpeak() { if (tts != null) tts.stop(); }
+
+        /** Keeps the screen on during a study session; the system screensaver can't interrupt it. */
+        @JavascriptInterface public void keepAwake(boolean on) {
+            runOnUiThread(() -> {
+                if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            });
+        }
 
         @JavascriptInterface public void httpGet(String id, String url) {
             io.execute(() -> {
@@ -231,6 +244,38 @@ public class MainActivity extends Activity {
                     if (c != null) c.disconnect();
                 }
                 js("window.app&&app._http(" + JSONObject.quote(id) + "," + ok + "," + JSONObject.quote(body) + ")");
+            });
+        }
+
+        @JavascriptInterface public void httpPost(String id, String url, String headersJson, String body) {
+            io.execute(() -> {
+                boolean ok = false;
+                String res;
+                HttpURLConnection c = null;
+                try {
+                    c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setConnectTimeout(8000);
+                    c.setReadTimeout(12000);
+                    c.setRequestMethod("POST");
+                    c.setDoOutput(true);
+                    c.setRequestProperty("User-Agent", "BiosTV/1.0");
+                    JSONObject h = new JSONObject(headersJson == null ? "{}" : headersJson);
+                    java.util.Iterator<String> keys = h.keys();
+                    while (keys.hasNext()) { String k = keys.next(); c.setRequestProperty(k, h.optString(k)); }
+                    byte[] out = (body == null ? "" : body).getBytes(StandardCharsets.UTF_8);
+                    c.setFixedLengthStreamingMode(out.length);
+                    try (java.io.OutputStream os = c.getOutputStream()) { os.write(out); }
+                    int code = c.getResponseCode();
+                    InputStream in = code < 400 ? c.getInputStream() : c.getErrorStream();
+                    res = in == null ? "" : read(in);
+                    ok = code < 400;
+                    if (!ok) res = code + " " + res;
+                } catch (Exception e) {
+                    res = String.valueOf(e.getMessage());
+                } finally {
+                    if (c != null) c.disconnect();
+                }
+                js("window.app&&app._http(" + JSONObject.quote(id) + "," + ok + "," + JSONObject.quote(res) + ")");
             });
         }
 

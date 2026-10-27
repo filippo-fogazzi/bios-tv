@@ -8,6 +8,9 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.media.tv.TvContract;
+import android.media.tv.TvInputInfo;
+import android.media.tv.TvInputManager;
 import android.util.Base64;
 
 import org.json.JSONArray;
@@ -24,6 +27,8 @@ import java.util.Set;
 final class AppRepo {
     static final class App {
         String pkg, label, banner, icon;
+        boolean input;
+        String inputId;
     }
 
     private static List<App> cache;
@@ -57,8 +62,46 @@ final class AppRepo {
             out.add(a);
         }
         Collections.sort(out, (x, y) -> x.label.compareToIgnoreCase(y.label));
+        out.addAll(0, inputs(c));
         cache = out;
         return out;
+    }
+
+    /**
+     * HDMI inputs (PS5, decoder…) as launchable tiles. Only TVs with Google TV built in have them;
+     * a dongle returns none. CEC devices appear as children of their port: prefer those names.
+     */
+    private static List<App> inputs(Context c) {
+        List<App> res = new ArrayList<>();
+        try {
+            TvInputManager tim = (TvInputManager) c.getSystemService(Context.TV_INPUT_SERVICE);
+            if (tim == null) return res;
+            List<TvInputInfo> all = tim.getTvInputList();
+            Set<String> parentsWithChild = new HashSet<>();
+            for (TvInputInfo i : all) if (i.getParentId() != null) parentsWithChild.add(i.getParentId());
+            for (TvInputInfo i : all) {
+                if (i.getType() != TvInputInfo.TYPE_HDMI || i.isHidden(c) || parentsWithChild.contains(i.getId())) continue;
+                CharSequence label = i.loadCustomLabel(c);
+                if (label == null || label.length() == 0) label = i.loadLabel(c);
+                App a = new App();
+                a.input = true;
+                a.inputId = i.getId();
+                a.pkg = "input:" + i.getId();
+                a.label = label == null ? "HDMI" : label.toString();
+                res.add(a);
+            }
+        } catch (Throwable t) {
+            // No TV input framework on this device.
+        }
+        return res;
+    }
+
+    static String inputIdFor(String pkg) {
+        return pkg != null && pkg.startsWith("input:") ? pkg.substring(6) : null;
+    }
+
+    static android.net.Uri inputUri(String inputId) {
+        return TvContract.buildChannelUriForPassthroughInput(inputId);
     }
 
     static String toJson(Context c, boolean images, boolean refresh) {
@@ -68,6 +111,7 @@ final class AppRepo {
                 JSONObject o = new JSONObject();
                 o.put("pkg", a.pkg);
                 o.put("label", a.label);
+                if (a.input) o.put("input", true);
                 if (images) {
                     if (a.banner != null) o.put("banner", a.banner);
                     if (a.icon != null) o.put("icon", a.icon);

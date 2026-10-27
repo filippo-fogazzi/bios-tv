@@ -57,6 +57,24 @@
     <div class="apps-viewport"><div class="apps" id="apps"></div></div>
   </section>
 
+  <!-- Screensaver: only the landscape and a small drifting clock -->
+  <div class="saver-layer" id="saver">
+    <div class="saver-clock glass-num" id="saverClock">--:--</div>
+    <div class="mono saver-date" id="saverDate">—</div>
+  </div>
+
+  <!-- Study session -->
+  <div class="study-layer" id="study">
+    <div class="mono study-k" id="studyK">SESSIONE DI STUDIO</div>
+    <div class="study-title" id="studyTitle">Studio</div>
+    <div class="study-ring">
+      <svg viewBox="0 0 640 640"><circle class="track" cx="320" cy="320" r="296"/><circle class="bar" id="studyBar" cx="320" cy="320" r="296"/></svg>
+      <div class="study-time glass-num" id="studyTime">50:00</div>
+      <div class="mono study-phase" id="studyPhase">CONCENTRAZIONE</div>
+    </div>
+    <div class="mono study-hint">OK · PAUSA &nbsp;&nbsp;/&nbsp;&nbsp; INDIETRO · TERMINA</div>
+  </div>
+
   <div class="panel-scrim" id="scrim"></div>
   <aside class="panel" id="panel"></aside>
   <div class="toast mono" id="toast"></div>

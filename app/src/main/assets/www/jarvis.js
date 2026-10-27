@@ -88,7 +88,9 @@
         if (part === "evening") add(`<span class="hl">${esc(tr.planToday)}</span> di oggi non risulta ancora registrato.`, `L'allenamento di oggi, ${tr.planToday}, non risulta ancora registrato.`);
         else if (part !== "night") add(`Oggi tocca a <span class="hl">${esc(tr.planToday)}</span>.${week}`, `Oggi tocca a ${tr.planToday}.${week}`);
       } else if (tr.doneToday) {
-        add(`Allenamento registrato.${week}`);
+        add(`Allenamento di oggi fatto.${week}`);
+      } else if (tr.linked && tr.next && part !== "night") {
+        add(`Prossima scheda: <span class="hl">${esc(tr.next)}</span>.${week}`, `Prossima scheda: ${tr.next}.${week}`);
       }
     }
 

@@ -97,6 +97,14 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     </div>
 
     <section>
+      <span class="mono"><b>00</b> / BIOS</span>
+      <div class="body">
+        <label><span>Codice TV di BIOS</span><input id="bToken" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="tv_…"></label>
+        <p class="hint">Con il codice la TV legge da BIOS agenda, lezioni, allenamenti fatti, prossima scheda ed esami. Sola lettura: niente salute né finanze.</p>
+      </div>
+    </section>
+
+    <section>
       <span class="mono"><b>01</b> / PROFILO</span>
       <div class="body">
         <label><span>Come ti chiamo</span><input id="pName" placeholder="Filippo"></label>
@@ -111,6 +119,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
           <label><span>Sfondo</span><select id="pScene"><option value="auto">Ogni giorno diverso</option><option value="mountains">Montagne</option><option value="dunes">Dune</option><option value="lake">Lago</option><option value="hills">Colline</option><option value="waves">Onde</option></select></label>
           <label><span>Orologio</span><select id="pClock"><option value="apple">Apple</option><option value="thin">Sottile</option></select></label>
         </div>
+        <label><span>Salvaschermo</span><select id="pSaver"><option value="3">Dopo 3 minuti</option><option value="5">Dopo 5 minuti</option><option value="10">Dopo 10 minuti</option><option value="0">Spento</option></select></label>
         <label><span>Sfondo personale (link a un'immagine, facoltativo)</span><input id="pWall" inputmode="url" placeholder="https://…"></label>
       </div>
     </section>
@@ -211,11 +220,12 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
   }
 
   function norm(d) {
-    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "", scene: "auto", clockStyle: "apple" }, d.profile);
+    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "", scene: "auto", clockStyle: "apple", saverMin: 3 }, d.profile);
     d.events = d.events || []; d.countdowns = d.countdowns || [];
     d.training = Object.assign({ target: 4, plan: {}, done: [] }, d.training);
     d.focus = Object.assign({ title: "", note: "" }, d.focus);
     d.apps = Object.assign({ order: [], hidden: [] }, d.apps);
+    d.bios = Object.assign({ token: "" }, d.bios);
     return d;
   }
 
@@ -223,9 +233,10 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     norm(data);
     const p = data.profile;
     $("today").textContent = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
+    $("bToken").value = data.bios.token || "";
     $("pName").value = p.name; $("pCity").value = p.city; $("pVoice").checked = p.voice !== false;
     $("pQf").value = p.quietFrom; $("pQt").value = p.quietTo; $("pTheme").value = p.theme; $("pWall").value = p.wallpaper || "";
-    $("pScene").value = p.scene || "auto"; $("pClock").value = p.clockStyle || "apple";
+    $("pScene").value = p.scene || "auto"; $("pClock").value = p.clockStyle || "apple"; $("pSaver").value = String(p.saverMin ?? 3);
     $("eDate").value = ymd(new Date());
     $("tTarget").value = data.training.target;
     $("days").innerHTML = DAYS.map(([k, n]) => `<div class="day"><span class="mono">${n}</span><input data-day="${k}" placeholder="Riposo" value="${esc(data.training.plan[k] || "")}"></div>`).join("");
@@ -272,7 +283,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     d.profile.voice = $("pVoice").checked;
     d.profile.quietFrom = $("pQf").value; d.profile.quietTo = $("pQt").value;
     d.profile.theme = $("pTheme").value; d.profile.wallpaper = $("pWall").value.trim();
-    d.profile.scene = $("pScene").value; d.profile.clockStyle = $("pClock").value;
+    d.profile.scene = $("pScene").value; d.profile.clockStyle = $("pClock").value; d.profile.saverMin = Number($("pSaver").value);
     const cutoff = ymd(new Date(Date.now() - 30 * 86400000));
     d.events = data.events.filter(e => e.date >= cutoff);
     d.countdowns = data.countdowns.filter(c => c.date >= ymd(new Date()));
@@ -280,6 +291,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     document.querySelectorAll("[data-day]").forEach(i => { d.training.plan[i.dataset.day] = i.value.trim(); });
     d.focus = { title: $("fTitle").value.trim(), note: $("fNote").value.trim() };
     d.apps = data.apps;
+    d.bios = { token: $("bToken").value.trim() };
     return d;
   }
 

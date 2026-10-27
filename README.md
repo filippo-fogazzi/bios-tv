@@ -21,6 +21,24 @@ sulla TV dai tuoi dati e letto dalla voce offline di Android.
 Meteo: Open-Meteo (gratuito, senza chiave). Posizione: dalla città impostata, oppure dalla rete.
 Tutti i dati restano in un file sulla TV.
 
+## Collegamento con BIOS
+
+La TV legge da BIOS (Supabase), in sola lettura, tramite la funzione `bios_tv_snapshot`:
+agenda e lezioni dei calendari collegati, allenamenti fatti (da Motra), prossima scheda,
+obiettivo settimanale ed esami in arrivo. Niente salute né finanze.
+
+Il codice della TV va inserito dal telefono, nella sezione *00 / BIOS*. Nel database ne è
+salvata solo l'impronta SHA-256 (tabella `bios_tv_devices`); per revocarlo basta eliminarne la riga.
+
+## Funzioni
+
+- **Salvaschermo**: dopo 3 minuti (regolabile) resta solo il paesaggio, con un orologio piccolo
+  che cambia posizione ogni minuto. Qualsiasi tasto lo chiude.
+- **Tessere HDMI**: sulle TV con Google TV integrato ogni ingresso HDMI diventa una tessera (es. PS5).
+  Il nome è quello dato all'ingresso nelle impostazioni della TV.
+- **Sessione di studio**: OK sulla card *Focus*, poi 25, 50 o 90 minuti. Timer a tutto schermo,
+  Jarvis annuncia pause e ripartenze, lo schermo resta acceso. OK mette in pausa, Indietro termina.
+
 ## Telecomando
 
 | Tasto | Azione |
@@ -29,7 +47,8 @@ Tutti i dati restano in un file sulla TV.
 | OK | Apri app / azione della card |
 | OK tenuto premuto su un'app | Riordina (frecce per spostare, OK per confermare) |
 | Indietro | Chiudi pannello / torna alla prima app |
-| Menu o icona ingranaggio | Impostazioni: indirizzo e PIN, voce, tema, tasto Home |
+| OK sulla card Focus | Sessione di studio |
+| Menu o icona ingranaggio | Impostazioni: BIOS, voce, tema, sfondo, orologio, salvaschermo, tasto Home |
 
 ## Come ottenere l'APK
 
