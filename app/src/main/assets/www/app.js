@@ -646,7 +646,6 @@
       <div class="sec mono">03 / SISTEMA</div>
       <div class="list">
         ${S.update ? "" : row("update", "Aggiornamenti", updateLine(), "")}
-        ${row("home", "Tasto Home porta a BIOS", "Si attiva una volta in Accessibilità", home ? "ATTIVO" : "DA ATTIVARE")}
         ${row("system", "Impostazioni della TV", "", "")}
       </div>`);
   }
