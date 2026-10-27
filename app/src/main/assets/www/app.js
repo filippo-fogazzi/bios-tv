@@ -637,31 +637,16 @@
         ${row("bios", "BIOS", "Agenda, lezioni e allenamenti dalla tua app. OK per aggiornare", biosVal)}
       </div>
 
-      <div class="sec mono">02 / JARVIS</div>
-      <div class="list">
-        ${row("voice", "Voce", "Saluto all'accensione e quando torni alla home", S.data.profile.voice !== false ? "ATTIVA" : "SPENTA")}
-        ${row("test", "Ascolta il briefing", "Jarvis ti fa il punto adesso", "")}
-      </div>
-
-      <div class="sec mono">03 / ASPETTO</div>
+      <div class="sec mono">02 / ASPETTO</div>
       <div class="list">
         ${row("theme", "Tema", "Paesaggio dinamico oppure nero BIOS", isLandscape() ? "PAESAGGIO" : "MONOLITH")}
         ${row("scene", "Sfondo", "OK per passare al successivo", sceneLabel())}
-        ${row("clock", "Orologio", "Pieno stile Apple oppure sottile", S.data.profile.clockStyle === "thin" ? "SOTTILE" : "APPLE")}
-        ${row("saver", "Salvaschermo", "Paesaggi in movimento quando non usi il telecomando", saverMinutes() ? "DOPO " + saverMinutes() + " MIN" : "SPENTO")}
       </div>
 
-      <div class="sec mono">04 / APP</div>
-      <div class="list">
-        ${row("reorder", "Riordina le app", "Scegli un'app, poi spostala con le frecce", "")}
-        ${row("refresh", "Aggiorna app e meteo", "Se hai appena installato qualcosa", "")}
-      </div>
-
-      <div class="sec mono">05 / SISTEMA</div>
+      <div class="sec mono">03 / SISTEMA</div>
       <div class="list">
         ${S.update ? "" : row("update", "Aggiornamenti", updateLine(), "")}
         ${row("home", "Tasto Home porta a BIOS", "Si attiva una volta in Accessibilità", home ? "ATTIVO" : "DA ATTIVARE")}
-        ${row("stock", "Apri la home di Google TV", "Per 10 minuti il tasto Home torna a Google", "")}
         ${row("system", "Impostazioni della TV", "", "")}
       </div>`);
   }

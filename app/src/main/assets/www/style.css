@@ -176,7 +176,7 @@ body.morning .glow-b { background: radial-gradient(circle, rgba(236, 214, 180, .
   box-shadow: 0 40px 120px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12);
   transform: translateX(780px); transition: transform .55s var(--ease); overflow-y: auto; scrollbar-width: none; }
 .panel::-webkit-scrollbar { display: none; }
-.panel .list .pbtn:last-child { margin-bottom: 52px; }
+.panel > .list:last-child .pbtn:last-child { margin-bottom: 52px; }
 body.panel-open .panel { transform: none; }
 body.panel-open .panel-scrim { opacity: 1; }
 .panel h2 { font-family: "InterDisplay"; font-weight: 600; font-size: 64px; letter-spacing: -.045em; text-transform: uppercase; line-height: .95; margin-top: 14px; }
