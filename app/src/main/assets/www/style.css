@@ -294,3 +294,16 @@ body.study-break .study-ring .bar { stroke: #b9c4a0; }
   color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(180deg, rgba(255,255,255,.97) 0%, rgba(255,255,255,.86) 55%, rgba(255,255,255,.7) 100%);
   filter: drop-shadow(0 8px 34px rgba(0,0,0,.22)); }
+
+/* Jarvis line fades in instead of typing (one composited transition) */
+#jarvisText { opacity: 1; }
+#jarvisText.in { animation: jfade .7s ease both; }
+@keyframes jfade { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+
+/* PlayStation input: original console-style tile (no official marks) */
+.tile .art.input.ps { background: radial-gradient(130% 150% at 15% 0%, #3d6ff2 0%, #1440b8 38%, #0a2270 70%, #06133f 100%); border-color: rgba(140,170,255,.35); }
+.tile .art.input.ps::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(60% 80% at 85% 110%, rgba(255,255,255,.18), transparent 60%), linear-gradient(180deg, rgba(255,255,255,.14), transparent 40%); }
+.tile .art.input.ps svg { width: 70px; height: 70px; stroke: #fff; stroke-width: 1.6; position: relative; }
+.tile .art.input.ps .nm { position: relative; font-family: "InterDisplay"; font-weight: 700; font-size: 26px; letter-spacing: .06em; color: #fff; }
+.tile .art.input.ps .sub { position: relative; font-family: "BiosMono"; font-size: 11px; letter-spacing: .28em; color: rgba(255,255,255,.7); margin-top: -6px; }

@@ -81,6 +81,9 @@ final class AppRepo {
             for (TvInputInfo i : all) if (i.getParentId() != null) parentsWithChild.add(i.getParentId());
             for (TvInputInfo i : all) {
                 if (i.getType() != TvInputInfo.TYPE_HDMI || i.isHidden(c) || parentsWithChild.contains(i.getId())) continue;
+                // Only ports with something plugged in (a console in rest mode still counts).
+                boolean cecDevice = i.getParentId() != null;
+                if (!cecDevice && tim.getInputState(i.getId()) == TvInputManager.INPUT_STATE_DISCONNECTED) continue;
                 CharSequence label = i.loadCustomLabel(c);
                 if (label == null || label.length() == 0) label = i.loadLabel(c);
                 App a = new App();
@@ -102,6 +105,23 @@ final class AppRepo {
 
     static android.net.Uri inputUri(String inputId) {
         return TvContract.buildChannelUriForPassthroughInput(inputId);
+    }
+
+    private static final String CACHE_FILE = "apps-cache.json";
+
+    /** Last app list written to disk: lets the launcher paint its tiles before the slow scan. */
+    static String cachedJson(Context c) {
+        java.io.File f = new java.io.File(c.getFilesDir(), CACHE_FILE);
+        if (!f.exists()) return null;
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) { return Store.readAll(in); }
+        catch (Exception e) { return null; }
+    }
+
+    static void writeCache(Context c, String json) {
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(c.getFilesDir(), CACHE_FILE))) {
+            out.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+        }
     }
 
     static String toJson(Context c, boolean images, boolean refresh) {

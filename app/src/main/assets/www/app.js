@@ -193,21 +193,10 @@
   }
 
   function typeHTML(el, html) {
-    if (S.typing) clearInterval(S.typing);
-    const segs = html.split(/(<[^>]+>)/);
-    const total = segs.reduce((n, s) => n + (s.startsWith("<") ? 0 : s.length), 0);
-    let shown = 0;
-    const frame = () => {
-      let left = shown, out = "";
-      for (const s of segs) {
-        if (s.startsWith("<")) { out += s; continue; }
-        if (left <= 0) break;
-        out += s.slice(0, left); left -= s.length;
-      }
-      el.innerHTML = out + (shown < total ? '<span class="caret"></span>' : "");
-    };
-    S.typing = setInterval(() => { shown += 3; frame(); if (shown >= total) { clearInterval(S.typing); S.typing = null; } }, 40);
-    frame();
+    el.classList.remove("in");
+    void el.offsetWidth;                                               // restart the fade
+    el.innerHTML = html;
+    el.classList.add("in");
   }
 
   function briefing(returning) {
@@ -234,8 +223,19 @@
   }
   function refreshGreeting() {
     if (!S.greeted) return;
-    if (S.typing) { setTimeout(refreshGreeting, 600); return; }
     greet({ voice: false, animate: false, keep: true });
+  }
+  const HELLOS = [
+    n => `Bentornato, ${n}.`, n => `Eccoti, ${n}.`, n => `Ciao ${n}. Tutto pronto.`,
+    n => `Rieccoti, ${n}. Sistemi in linea.`, n => `Bentornato. A disposizione, ${n}.`, n => `Ciao ${n}.`
+  ];
+  function shortHello() {
+    const name = (S.data.profile.name || (S.bios && String(S.bios.profileName || "").split(" ")[0]) || "").trim() || "Filippo";
+    const h = new Date().getHours();
+    let line = h >= 23 || h < 5 ? `Ciao ${name}. È tardi, ricordatelo.` : HELLOS[Math.floor(Math.random() * HELLOS.length)](name);
+    const soon = upcomingEvents().find(e => e.start > Date.now() && e.start - Date.now() < 2 * 3600000);
+    if (soon) line += ` ${soon.title} tra ${J.minutesWord(Math.round((soon.start - Date.now()) / 60000))}.`;
+    return line;
   }
   function say(text) {
     B.speak(text);
@@ -266,9 +266,13 @@
     try {
       const P = window.Scene.draw($("scene"), new Date(), sun, S.data.profile.scene);
       S.sceneName = P.scene;
-      S.frost = document.body.classList.contains("has-wallpaper") ? frostFromImage() : window.Scene.frosted($("scene"));
-    } catch (e) { S.frost = null; }
-    applyFrost();
+    } catch (e) { /* keep last frame */ }
+    clearTimeout(S.frostT);
+    S.frostT = setTimeout(() => {
+      try { S.frost = document.body.classList.contains("has-wallpaper") ? frostFromImage() : window.Scene.frosted($("scene")); }
+      catch (e) { S.frost = null; }
+      applyFrost();
+    }, 400);
   }
   function frostFromImage() {
     try {
@@ -350,6 +354,7 @@
         sun: r.daily.sunrise && r.daily.sunrise[0] ? { rise: new Date(r.daily.sunrise[0]), set: new Date(r.daily.sunset[0]) } : null,
         at: Date.now()
       };
+      store.set("weather", S.weather);
       renderWeather(); renderCards(); renderClock(); drawScene(); refreshGreeting();
     } catch (e) { /* offline: keep last known weather */ }
   }
@@ -412,7 +417,9 @@
     const box = $("apps");
     if (!S.apps.length) { box.innerHTML = '<div class="apps-empty">Caricamento app…</div>'; return; }
     box.innerHTML = S.apps.map((a, i) => {
-      const art = a.input ? `<div class="art input">${inputIcon(a.label)}<div class="nm">${J.esc(a.label)}</div></div>`
+      const ps = a.input && /ps\s?5|playstation/i.test(a.label);
+      const art = ps ? `<div class="art input ps">${inputIcon("ps5")}<div class="nm">PS5</div><div class="sub">CONSOLE · HDMI</div></div>`
+        : a.input ? `<div class="art input">${inputIcon(a.label)}<div class="nm">${J.esc(a.label)}</div></div>`
         : a.banner ? `<div class="art"><img src="${a.banner}" alt=""></div>`
         : `<div class="art icon-only">${a.icon ? `<img src="${a.icon}" alt="">` : ""}<div class="nm">${J.esc(a.label)}</div></div>`;
       return `<div class="tile focusable" data-row="apps" data-idx="${i}" data-pkg="${a.pkg}"><div class="shade"></div>${art}<div class="name">${J.esc(a.label)}</div></div>`;
@@ -484,7 +491,8 @@
       const step = 318, n = els.length, first = Math.max(0, Math.min(S.focus.idx - 4, n - 5));
       $("apps").style.transform = `translateX(${-first * step}px)`;
       if (withTint) setTint(tintFor(el));
-      $("appsHint").textContent = S.moveMode ? "← → PER SPOSTARE · OK PER CONFERMARE" : "";
+      $("appsHint").textContent = S.moveMode ? "← → PER SPOSTARE · OK PER CONFERMARE"
+        : S.pickMode ? "SCEGLI L'APP DA SPOSTARE · OK PER PRENDERLA" : "TIENI PREMUTO OK PER SPOSTARE";
     } else {
       $("appsHint").textContent = "";
       setTint(null);
@@ -521,6 +529,7 @@
       const from = rowEls(S.focus.row)[S.focus.idx];
       S.rowIdx[S.focus.row] = S.focus.idx;
       S.focus.row = ROWS[nr];
+      S.pickMode = false;
       const targets = rowEls(S.focus.row);
       if (from && targets.length) {
         const cx = r0 => (r0.left + r0.right) / 2, x = cx(from.getBoundingClientRect());
@@ -540,7 +549,10 @@
     const el = rowEls(S.focus.row)[S.focus.idx];
     if (!el) return;
     if (S.focus.row === "top") return openSettings();
-    if (S.focus.row === "apps") { B.launch(el.dataset.pkg); return; }
+    if (S.focus.row === "apps") {
+      if (S.pickMode) { S.pickMode = false; startMove(); return; }
+      B.launch(el.dataset.pkg); return;
+    }
     const act = el.dataset.act;
     if (act === "agenda") openAgenda();
     else if (act === "training") {
@@ -615,6 +627,8 @@
         <button class="pbtn" data-act="saver">Salvaschermo <span class="st">${saverMinutes() ? "DOPO " + saverMinutes() + " MIN" : "SPENTO"}</span></button>
         <button class="pbtn" data-act="test">Ascolta il briefing <span class="st">OK</span></button>
         <button class="pbtn" data-act="home">Tasto Home apre BIOS <span class="st">${home ? "ATTIVO" : "DA ATTIVARE"}</span></button>
+        <button class="pbtn" data-act="reorder">Riordina le app <span class="st">OK</span></button>
+        <button class="pbtn" data-act="update">${S.update ? "Installa la nuova versione" : "Cerca aggiornamenti"} <span class="st">${S.update ? "BUILD " + S.update : "BUILD " + (B.currentBuild ? B.currentBuild() : "—")}</span></button>
         <button class="pbtn" data-act="refresh">Aggiorna meteo e app <span class="st">OK</span></button>
         <button class="pbtn" data-act="stock">Apri Home di Google TV <span class="st">10 MIN</span></button>
         <button class="pbtn" data-act="system">Impostazioni TV <span class="st">OK</span></button>
@@ -637,6 +651,12 @@
   function panelAction(act) {
     if (act === "voice") { const i = S.panel.idx; updateData(d => { d.profile.voice = d.profile.voice === false; }); openSettings(); S.panel.idx = i; applyFocus(); }
     else if (act === "theme") { updateData(d => { d.profile.theme = isLandscape() ? "monolith" : "landscape"; }); applyTheme(); renderClock(); const i = S.panel.idx; openSettings(); S.panel.idx = i; applyFocus(); }
+    else if (act === "later") closePanel();
+    else if (act === "reorder") {
+      closePanel();
+      S.focus = { row: "apps", idx: 0 }; S.rowIdx.apps = 0;
+      S.pickMode = true; applyFocus(false);
+    }
     else if (act.startsWith("study:")) { const [, m, b] = act.split(":"); startStudy(Number(m), Number(b)); }
     else if (act === "readFocus") {
       const f = S.data.focus;
@@ -658,7 +678,13 @@
       openSettings(); S.panel.idx = idx; applyFocus();
     }
     else if (act === "test") { const b = briefing(false); B.speak(b.speech); }
-    else if (act === "home") B.openAccessibility();
+    else if (act === "home") {
+      const ok = B.openAccessibility();
+      if (!ok) toast("IMPOSTAZIONI → SISTEMA → ACCESSIBILITÀ → BIOS TV · TASTO HOME");
+    }
+    else if (act === "update") {
+      if (S.update) B.installUpdate(); else { B.checkUpdate(); toast("CONTROLLO AGGIORNAMENTI…"); }
+    }
     else if (act === "refresh") { B.requestApps(true); loadWeather(); toast("AGGIORNAMENTO IN CORSO"); }
     else if (act === "stock") B.openStockHome();
     else if (act === "system") B.openSystemSettings();
@@ -819,6 +845,7 @@
       else if (k === "menu") { if (!S.panel) openSettings(); }
       else if (k === "back") {
         if (S.moveMode) endMove();
+        else if (S.pickMode) { S.pickMode = false; applyFocus(false); }
         else if (S.panel) closePanel();
         else { S.focus = { row: "apps", idx: 0 }; S.rowIdx.apps = 0; applyFocus(); }
       }
@@ -826,6 +853,20 @@
     _http(id, ok, body) { const p = pending[id]; if (!p) return; delete pending[id]; ok ? p.resolve(body) : p.reject(new Error(body)); },
     _apps(list) { S.allApps = Array.isArray(list) ? list : []; renderApps(); },
     refreshApps() { B.requestApps(false); },
+    updateAvailable(n) {
+      if (S.update === n) return;
+      S.update = n;
+      if (S.study || S.saver) return;                                   // ask later, not mid-session
+      openPanel(`
+        <div class="k mono">BIOS / AGGIORNAMENTO</div>
+        <h2>NUOVA<span class="muted">VERSIONE.</span></h2>
+        <div class="info"><div class="k mono">DISPONIBILE</div><div class="big">Build ${n}</div></div>
+        <div class="list">
+          <button class="pbtn" data-act="update">Aggiorna ora <span class="st">OK</span></button>
+          <button class="pbtn" data-act="later">Più tardi <span class="st">INDIETRO</span></button>
+        </div>`);
+    },
+    updateFailed(msg) { toast("AGGIORNAMENTO NON RIUSCITO" + (msg ? " · " + String(msg).slice(0, 40).toUpperCase() : "")); },
     ttsState(s) { $("orb").classList.toggle("speaking", s === "start"); },
     onData() {
       loadData(); applyTheme(); renderCards(); renderApps(); greet({ voice: false, animate: false, keep: true });
@@ -841,8 +882,11 @@
       if (S.moveMode) endMove();
       renderClock();
       const since = Date.now() - S.lastSpokenAt;
-      if (S.woke || since > 3 * 3600000) greet({ voice: true });
-      else if (Date.now() - S.lastGreetAt > 10 * 60000) greet({ voice: false });
+      if (S.woke || since > 3 * 3600000) greet({ voice: true });                 // TV turned on / long absence: full briefing
+      else {
+        if (Date.now() - S.lastGreetAt > 10 * 60000) greet({ voice: false });
+        if (since > 5 * 60000 && voiceAllowed()) say(shortHello());            // back from an app: a quick hello
+      }
       S.woke = false;
       if (!S.weather || Date.now() - S.weather.at > 20 * 60000) loadWeather();
       if (!S.biosAt || Date.now() - S.biosAt > 5 * 60000) loadBios();
@@ -852,24 +896,36 @@
   function boot() {
     fit(); window.addEventListener("resize", fit);
     loadData();
-    applyTheme();
+    const cw = store.get("weather", null);
+    if (cw && Date.now() - cw.at < 3 * 3600000) {
+      if (cw.sun) cw.sun = { rise: new Date(cw.sun.rise), set: new Date(cw.sun.set) };
+      S.weather = cw; renderWeather();
+    }
+    document.body.classList.toggle("theme-landscape", isLandscape());
     renderClock(); renderCards(); renderApps();
     B.requestApps(false);
-    // Wait briefly for the weather so the first briefing (and the voice) can mention it.
-    Promise.race([Promise.all([loadWeather(), loadBios()]), new Promise(r => setTimeout(r, 3500))])
-      .then(() => greet({ voice: Date.now() - S.lastSpokenAt > 20 * 60000, fresh: true }));
+    greet({ voice: false, fresh: true });                               // text immediately…
+    // …heavy work after the first frame, so the screen appears at once
+    requestAnimationFrame(() => setTimeout(applyTheme, 30));
+    Promise.race([Promise.all([loadWeather(), loadBios()]), new Promise(r => setTimeout(r, 1500))])
+      .then(() => greet({ voice: true, animate: false, keep: true }));       // …and the voice with fresh data
     setInterval(renderClock, 5000);
-    setInterval(() => { renderCards(); if (!S.typing) greet({ voice: false, animate: false, keep: true }); }, 60000);
+    setInterval(() => { renderCards(); greet({ voice: false, animate: false, keep: true }); }, 60000);
     setInterval(loadWeather, 20 * 60000);
     setInterval(drawScene, 10 * 60000);
     setInterval(loadBios, 10 * 60000);
     resetIdle();
+    if (B.checkUpdate) { setTimeout(() => B.checkUpdate(), 15000); setInterval(() => B.checkUpdate(), 6 * 3600000); }
     if (PREVIEW) {
       const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "ok", Escape: "back", Backspace: "back", h: "hold", m: "menu" };
       window.addEventListener("keydown", e => { const k = map[e.key]; if (k) { e.preventDefault(); app.key(k); } });
     }
   }
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(boot); else boot();
+  // Fonts are local, but never let them hold the first paint for long.
+  let booted = false;
+  const go = () => { if (!booted) { booted = true; boot(); } };
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
+  setTimeout(go, 700);
 
   /* ------------------------------------------------------------------ preview mock */
   function makeMock() {

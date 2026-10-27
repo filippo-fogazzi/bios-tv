@@ -5,7 +5,9 @@ import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ComponentName;
 import android.content.IntentFilter;
+import android.content.pm.PackageInstaller;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -37,11 +39,27 @@ public class MainActivity extends Activity {
     private WebView web;
     private TextToSpeech tts;
     private boolean ttsReady;
+    private volatile String pendingSpeech;               // greeting asked before the voice engine was ready
     private boolean okLongFired;
     private final ExecutorService io = Executors.newFixedThreadPool(2);
 
     private final BroadcastReceiver screenOn = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { js("window.app&&app.onWake()"); }
+    };
+    private volatile Updater.Release pendingUpdate;
+
+    /** Result of an update install: Android needs the user's confirmation, or reports a failure. */
+    private final BroadcastReceiver installStatus = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            int st = i.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+            if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT);
+                if (confirm != null) safeStart(confirm);
+            } else if (st != PackageInstaller.STATUS_SUCCESS) {
+                String msg = i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+                js("window.app&&app.updateFailed(" + JSONObject.quote(msg == null ? "" : msg) + ")");
+            }
+        }
     };
     private final BroadcastReceiver packages = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -81,6 +99,8 @@ public class MainActivity extends Activity {
         pf.addDataScheme("package");
         register(packages, pf);
         register(screenOn, new IntentFilter(Intent.ACTION_SCREEN_ON));
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(installStatus, new IntentFilter(Updater.ACTION_STATUS), Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(installStatus, new IntentFilter(Updater.ACTION_STATUS));
     }
 
     private void register(BroadcastReceiver r, IntentFilter f) {
@@ -110,7 +130,12 @@ public class MainActivity extends Activity {
                 @Override public void onError(String id) { js("window.app&&app.ttsState('done')"); }
             });
             ttsReady = true;
+            if (pendingSpeech != null) { speakNow(pendingSpeech); pendingSpeech = null; }
         });
+    }
+
+    private void speakNow(String text) {
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "bios-" + System.currentTimeMillis());
     }
 
     void js(String code) {
@@ -134,7 +159,10 @@ public class MainActivity extends Activity {
                 if (down) {
                     if (e.getRepeatCount() == 0) okLongFired = false;
                     else if (!okLongFired && e.getEventTime() - e.getDownTime() > 600) { okLongFired = true; key("hold"); }
-                } else if (up && !okLongFired) key("ok");
+                } else if (up && !okLongFired) {
+                    // Remotes that send no key repeats: judge the press by its duration.
+                    key(e.getEventTime() - e.getDownTime() > 600 ? "hold" : "ok");
+                }
                 return true;
             case KeyEvent.KEYCODE_BACK:
             case KeyEvent.KEYCODE_ESCAPE:
@@ -164,7 +192,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        try { unregisterReceiver(packages); unregisterReceiver(screenOn); } catch (Exception ignored) {}
+        try { unregisterReceiver(packages); unregisterReceiver(screenOn); unregisterReceiver(installStatus); } catch (Exception ignored) {}
         if (tts != null) tts.shutdown();
         if (web != null) { web.destroy(); web = null; }
         io.shutdown();
@@ -183,8 +211,20 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void safeStart(Intent i) {
-        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {}
+    private boolean safeStart(Intent i) {
+        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true; } catch (Exception e) { return false; }
+    }
+
+    /** Accessibility settings live in different places on different TV builds: try them in order. */
+    private boolean openAccessibilitySettings() {
+        Intent[] tries = {
+            new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
+            new Intent().setComponent(new ComponentName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity")),
+            new Intent().setComponent(new ComponentName("com.android.tv.settings", "com.android.tv.settings.system.AccessibilityActivity")),
+            new Intent().setComponent(new ComponentName("com.google.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity")),
+        };
+        for (Intent t : tries) if (safeStart(t)) return true;
+        return false;
     }
 
     /* ---------------------------------------------------------------- JS bridge */
@@ -195,7 +235,15 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void saveData(String json) { Store.write(MainActivity.this, json); }
 
         @JavascriptInterface public void requestApps(boolean refresh) {
-            io.execute(() -> js("window.app&&app._apps(" + AppRepo.toJson(MainActivity.this, true, refresh) + ")"));
+            io.execute(() -> {
+                String cached = refresh ? null : AppRepo.cachedJson(MainActivity.this);
+                if (cached != null) js("window.app&&app._apps(" + cached + ")");
+                String fresh = AppRepo.toJson(MainActivity.this, true, refresh);
+                if (!fresh.equals(cached)) {
+                    AppRepo.writeCache(MainActivity.this, fresh);
+                    js("window.app&&app._apps(" + fresh + ")");
+                }
+            });
         }
 
         @JavascriptInterface public void launch(String pkg) {
@@ -210,8 +258,8 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void speak(String text) {
-            if (!ttsReady) return;
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "bios-" + System.currentTimeMillis());
+            if (!ttsReady) { pendingSpeech = text; return; }
+            speakNow(text);
         }
 
         @JavascriptInterface public void stopSpeak() { if (tts != null) tts.stop(); }
@@ -283,7 +331,38 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface public boolean isHomeWatcherOn() { return HomeWatcherService.isEnabled(MainActivity.this); }
 
-        @JavascriptInterface public void openAccessibility() { safeStart(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+        /** True if an accessibility screen opened; false means the general settings opened instead. */
+        @JavascriptInterface public boolean openAccessibility() {
+            if (openAccessibilitySettings()) return true;
+            safeStart(new Intent(Settings.ACTION_SETTINGS));
+            return false;
+        }
+
+        @JavascriptInterface public int currentBuild() { return Updater.currentBuild(MainActivity.this); }
+
+        @JavascriptInterface public void checkUpdate() {
+            io.execute(() -> {
+                try {
+                    Updater.Release r = Updater.check(MainActivity.this);
+                    pendingUpdate = r;
+                    if (r != null) js("window.app&&app.updateAvailable(" + r.build + ")");
+                } catch (Exception ignored) {
+                    // offline or GitHub unreachable: try again later
+                }
+            });
+        }
+
+        @JavascriptInterface public void installUpdate() {
+            Updater.Release r = pendingUpdate;
+            if (r == null) return;
+            io.execute(() -> {
+                try {
+                    Updater.install(MainActivity.this, r);
+                } catch (Exception e) {
+                    js("window.app&&app.updateFailed(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                }
+            });
+        }
 
         @JavascriptInterface public void openSystemSettings() { safeStart(new Intent(Settings.ACTION_SETTINGS)); }
 

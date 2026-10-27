@@ -59,6 +59,13 @@ Link fisso all'ultima versione:
 https://github.com/<utente>/<repo>/releases/latest/download/bios-tv.apk
 ```
 
+## Aggiornamenti automatici
+
+Dalla build 5 l'app controlla da sola le release di questo repository (all'avvio e ogni 6 ore):
+quando ne trova una nuova la scarica e chiede una sola conferma ("Aggiorna"). Android non permette
+aggiornamenti senza conferma alle app installate fuori dal Play Store.
+Si può controllare a mano da Impostazioni → *Cerca aggiornamenti*.
+
 ## Installazione sulla TV
 
 1. Sulla TV: *Impostazioni → Sistema → Info*, premi 7 volte su *Build del sistema operativo*
