@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BIOS TV</string>
+    <string name="watcher_label">BIOS TV · Tasto Home</string>
+    <string name="watcher_desc">Quando premi Home o accendi la TV, riporta BIOS al posto della schermata di Google TV. Non legge il contenuto dello schermo.</string>
+</resources>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BIOS TV</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-landscape">
+<div id="stage">
+  <div class="bg">
+    <canvas class="scene" id="scene" width="1920" height="1080"></canvas>
+    <img class="wallpaper" id="wallpaper" alt="">
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+    <div class="glow glow-tint"></div>
+    <div class="grain"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand"><span class="wordmark">BIOS</span><span class="mono dim">/ TV</span></div>
+    <div class="top-right">
+      <div class="weather-pill" id="weatherPill">
+        <span class="wicon" id="wIcon"></span>
+        <span class="wtemp" id="wTemp">--°</span>
+        <span class="wdesc mono" id="wDesc">METEO</span>
+      </div>
+      <button class="icon-btn focusable" id="btnSettings" data-row="top" data-idx="0" aria-label="Impostazioni">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-left">
+      <div class="mono date" id="date">—</div>
+      <h1 class="headline"><span id="h1">BENTORNATO,</span><span id="h2" class="muted">FILIPPO.</span></h1>
+      <div class="jarvis">
+        <div class="orb" id="orb"><i></i><i></i><i></i></div>
+        <p id="jarvisText"></p>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="clock" id="clock">--:--</div>
+      <div class="mono clock-sub" id="clockSub">—</div>
+    </div>
+  </section>
+
+  <section class="block block-cards">
+    <div class="label mono"><span>01</span> / LA TUA GIORNATA</div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section class="block block-apps">
+    <div class="label mono"><span>02</span> / APP <em class="hint" id="appsHint"></em></div>
+    <div class="apps-viewport"><div class="apps" id="apps"></div></div>
+  </section>
+
+  <div class="panel-scrim" id="scrim"></div>
+  <aside class="panel" id="panel"></aside>
+  <div class="toast mono" id="toast"></div>
+</div>
+<script src="scene.js"></script>
+<script src="jarvis.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

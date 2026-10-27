@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BIOS TV">
+<title>BIOS TV</title>
+<style>
+@font-face { font-family: "Inter"; src: url(/fonts/Inter-Regular.otf); font-weight: 400; }
+@font-face { font-family: "Inter"; src: url(/fonts/Inter-Medium.otf); font-weight: 500; }
+@font-face { font-family: "InterDisplay"; src: url(/fonts/InterDisplay-SemiBold.otf); font-weight: 600; }
+@font-face { font-family: "BiosMono"; src: url(/fonts/Mono.ttf); }
+:root { --bg: #090a0b; --ink: #ece7de; --ink-2: rgba(236,231,222,.64); --ink-3: rgba(236,231,222,.38); --muted: #7f827f;
+  --line: rgba(236,231,222,.12); --card: rgba(255,255,255,.03); --olive: #8e957c; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.45 "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  padding: env(safe-area-inset-top) 0 calc(110px + env(safe-area-inset-bottom)); }
+.wrap { max-width: 560px; margin: 0 auto; padding: 0 20px; }
+.mono { font-family: "BiosMono", ui-monospace, monospace; letter-spacing: .22em; text-transform: uppercase; font-size: 12px; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; border-bottom: 1px solid var(--line); }
+.wordmark { font-weight: 500; font-size: 22px; letter-spacing: .34em; }
+.status { color: var(--ink-3); }
+.status.ok { color: var(--olive); }
+.hero { padding: 36px 0 10px; }
+.hero .mono { color: var(--ink-2); }
+h1 { margin-top: 14px; font-family: "InterDisplay"; font-weight: 600; font-size: 52px; line-height: .92; letter-spacing: -.05em; text-transform: uppercase; }
+h1 span { display: block; color: var(--muted); }
+section { margin-top: 28px; border: 1px solid var(--line); background: var(--card); }
+section > .mono { display: block; padding: 18px 18px 0; color: var(--ink-3); }
+section > .mono b { color: var(--ink-2); font-weight: 400; }
+.body { padding: 14px 18px 20px; display: grid; gap: 12px; }
+label { display: grid; gap: 6px; }
+label > span { color: var(--ink-3); font-size: 13px; }
+input, select { width: 100%; min-width: 0; max-width: 100%; background: rgba(255,255,255,.04); border: 1px solid var(--line); color: var(--ink); border-radius: 0;
+  font: inherit; padding: 12px 12px; -webkit-appearance: none; appearance: none; color-scheme: dark; }
+input:focus, select:focus { outline: none; border-color: rgba(236,231,222,.45); }
+html, body { overflow-x: hidden; }
+.row > *, .row3 > * { min-width: 0; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row3 { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 10px; }
+.toggle { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.switch { position: relative; width: 52px; height: 30px; flex: none; }
+.switch input { position: absolute; opacity: 0; inset: 0; z-index: 1; }
+.switch i { position: absolute; inset: 0; border: 1px solid var(--line); background: rgba(255,255,255,.05); transition: .25s; }
+.switch i::after { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; background: var(--ink-2); transition: .25s; }
+.switch input:checked + i { background: var(--olive); border-color: var(--olive); }
+.switch input:checked + i::after { left: 26px; background: var(--bg); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.btn { border: 1px solid var(--line); padding: 12px 16px; color: var(--ink); background: rgba(255,255,255,.04); }
+.btn.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 500; }
+.list { display: grid; }
+.item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.item:last-child { border-bottom: 0; }
+.item .when { font-family: "BiosMono"; font-size: 12px; letter-spacing: .08em; color: var(--ink-2); width: 108px; flex: none; }
+.item .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .x { width: 34px; height: 34px; color: var(--ink-3); font-size: 20px; flex: none; }
+.empty { color: var(--ink-3); font-size: 14px; padding: 6px 0; }
+.days { display: grid; gap: 8px; }
+.day { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 10px; }
+.day .mono { color: var(--ink-2); }
+.app { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.app .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app.off .nm { color: var(--ink-3); text-decoration: line-through; }
+.app button { width: 36px; height: 36px; border: 1px solid var(--line); color: var(--ink-2); }
+.savebar { position: fixed; left: 0; right: 0; bottom: 0; padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(9,10,11,0), rgba(9,10,11,.92) 30%); }
+.savebar .btn { width: 100%; max-width: 520px; display: block; margin: 0 auto; padding: 16px; font-size: 16px; }
+.savebar .btn[disabled] { opacity: .45; }
+.gate { min-height: 70vh; display: grid; align-content: center; gap: 16px; }
+.gate input { font-family: "BiosMono"; font-size: 30px; letter-spacing: .5em; text-align: center; }
+.hint { color: var(--ink-3); font-size: 13px; }
+footer { margin: 32px 0 0; color: var(--ink-3); }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="wordmark">BIOS</div>
+    <div class="mono status" id="status">TV</div>
+  </header>
+
+  <div class="gate hidden" id="gate">
+    <div class="mono" style="color:var(--ink-2)">BIOS / ACCESSO</div>
+    <h1>IL TUO PIN.<span>SULLA TV.</span></h1>
+    <p class="hint">Lo trovi sulla TV: icona impostazioni in alto a destra.</p>
+    <input id="pinInput" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="••••">
+    <button class="btn solid" id="pinBtn">Entra</button>
+  </div>
+
+  <main id="main" class="hidden">
+    <div class="hero">
+      <div class="mono" id="today">—</div>
+      <h1>LA TUA TV.<span>LA TUA VITA.</span></h1>
+    </div>
+
+    <section>
+      <span class="mono"><b>01</b> / PROFILO</span>
+      <div class="body">
+        <label><span>Come ti chiamo</span><input id="pName" placeholder="Filippo"></label>
+        <label><span>Città per il meteo</span><input id="pCity" placeholder="Automatica dalla rete"></label>
+        <div class="toggle"><span>Saluto a voce</span><label class="switch"><input type="checkbox" id="pVoice"><i></i></label></div>
+        <div class="row">
+          <label><span>Silenzio dalle</span><input type="time" id="pQf"></label>
+          <label><span>alle</span><input type="time" id="pQt"></label>
+        </div>
+        <label><span>Tema</span><select id="pTheme"><option value="landscape">Paesaggio dinamico</option><option value="monolith">Monolith (scuro BIOS)</option></select></label>
+        <label><span>Sfondo personale (link a un'immagine, facoltativo)</span><input id="pWall" inputmode="url" placeholder="https://…"></label>
+      </div>
+    </section>
+
+    <section>
+      <span class="mono"><b>02</b> / AGENDA</span>
+      <div class="body">
+        <div class="list" id="events"></div>
+        <label><span>Nuovo impegno</span><input id="eTitle" placeholder="Biologia, turno, esame…"></label>
+        <div class="row3">
+          <input type="date" id="eDate">
+          <input type="time" id="eStart" value="09:00">
+          <input type="time" id="eEnd">
+        </div>
+        <button class="btn" id="eAdd">Aggiungi</button>
+      </div>
+    </section>
+
+    <section>
+      <span class="mono"><b>03</b> / ALLENAMENTO</span>
+      <div class="body">
+        <label><span>Allenamenti a settimana</span><input type="number" id="tTarget" min="0" max="7" inputmode="numeric"></label>
+        <div class="days" id="days"></div>
+        <p class="hint">Lascia vuoto per i giorni di riposo. Dalla TV premi OK sulla card per segnarlo fatto.</p>
+      </div>
+    </section>
+
+    <section>
+      <span class="mono"><b>04</b> / FOCUS</span>
+      <div class="body">
+        <label><span>Priorità della settimana</span><input id="fTitle" placeholder="Es. NODARA · MVP"></label>
+        <label><span>Nota</span><input id="fNote" placeholder="Il prossimo passo concreto"></label>
+      </div>
+    </section>
+
+    <section>
+      <span class="mono"><b>05</b> / CONTO ALLA ROVESCIA</span>
+      <div class="body">
+        <div class="list" id="cds"></div>
+        <div class="row">
+          <input id="cTitle" placeholder="Esame, partenza…">
+          <input type="date" id="cDate">
+        </div>
+        <button class="btn" id="cAdd">Aggiungi</button>
+      </div>
+    </section>
+
+    <section>
+      <span class="mono"><b>06</b> / APP SULLA HOME</span>
+      <div class="body"><div id="apps" class="list"><div class="empty">Caricamento…</div></div></div>
+    </section>
+
+    <footer class="mono">BIOS / TV · I DATI RESTANO SULLA TUA TV</footer>
+  </main>
+</div>
+
+<div class="savebar hidden" id="savebar"><button class="btn solid" id="save" disabled>Tutto salvato</button></div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const DAYS = [["1", "LUN"], ["2", "MAR"], ["3", "MER"], ["4", "GIO"], ["5", "VEN"], ["6", "SAB"], ["0", "DOM"]];
+  const pad = n => String(n).padStart(2, "0");
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  let pin = "", data = null, apps = [], dirty = false;
+  try { pin = localStorage.getItem("biostv.pin") || ""; } catch (e) { /* private mode */ }
+
+  async function api(method, path, body) {
+    const r = await fetch(path, { method, headers: { "X-Pin": pin, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 401) { showGate(true); throw new Error("pin"); }
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }
+  function status(t, ok) { const s = $("status"); s.textContent = t; s.classList.toggle("ok", !!ok); }
+  function setDirty(v) {
+    dirty = v; const b = $("save");
+    b.disabled = !v; b.textContent = v ? "Salva sulla TV" : "Tutto salvato";
+  }
+  function showGate(wrong) {
+    $("gate").classList.remove("hidden"); $("main").classList.add("hidden"); $("savebar").classList.add("hidden");
+    if (wrong && pin) status("PIN ERRATO");
+  }
+
+  async function load() {
+    try {
+      data = await api("GET", "/api/data");
+      try { localStorage.setItem("biostv.pin", pin); } catch (e) { /* ignore */ }
+      $("gate").classList.add("hidden"); $("main").classList.remove("hidden"); $("savebar").classList.remove("hidden");
+      status("CONNESSO", true);
+      fill();
+      apps = await api("GET", "/api/apps").catch(() => []);
+      renderApps();
+    } catch (e) {
+      if (e.message !== "pin") status("TV NON RAGGIUNGIBILE");
+    }
+  }
+
+  function norm(d) {
+    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "" }, d.profile);
+    d.events = d.events || []; d.countdowns = d.countdowns || [];
+    d.training = Object.assign({ target: 4, plan: {}, done: [] }, d.training);
+    d.focus = Object.assign({ title: "", note: "" }, d.focus);
+    d.apps = Object.assign({ order: [], hidden: [] }, d.apps);
+    return d;
+  }
+
+  function fill() {
+    norm(data);
+    const p = data.profile;
+    $("today").textContent = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
+    $("pName").value = p.name; $("pCity").value = p.city; $("pVoice").checked = p.voice !== false;
+    $("pQf").value = p.quietFrom; $("pQt").value = p.quietTo; $("pTheme").value = p.theme; $("pWall").value = p.wallpaper || "";
+    $("eDate").value = ymd(new Date());
+    $("tTarget").value = data.training.target;
+    $("days").innerHTML = DAYS.map(([k, n]) => `<div class="day"><span class="mono">${n}</span><input data-day="${k}" placeholder="Riposo" value="${esc(data.training.plan[k] || "")}"></div>`).join("");
+    $("fTitle").value = data.focus.title; $("fNote").value = data.focus.note;
+    renderEvents(); renderCds(); setDirty(false);
+  }
+
+  function renderEvents() {
+    const today = ymd(new Date());
+    const list = data.events.filter(e => e.date >= today).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+    $("events").innerHTML = list.length ? list.map(e => {
+      const d = new Date(e.date + "T00:00");
+      const when = `${d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" })} ${e.start || ""}`;
+      return `<div class="item"><div class="when">${esc(when)}</div><div class="what">${esc(e.title)}${e.end ? ` <span class="hint">→ ${esc(e.end)}</span>` : ""}</div><button class="x" data-ev="${esc(e.id)}" aria-label="Elimina">×</button></div>`;
+    }).join("") : '<div class="empty">Nessun impegno in arrivo.</div>';
+  }
+  function renderCds() {
+    const list = data.countdowns.slice().sort((a, b) => a.date.localeCompare(b.date));
+    $("cds").innerHTML = list.length ? list.map(c => `<div class="item"><div class="when">${esc(c.date.split("-").reverse().join("/"))}</div><div class="what">${esc(c.title)}</div><button class="x" data-cd="${esc(c.id)}" aria-label="Elimina">×</button></div>`).join("")
+      : '<div class="empty">Nessun conto alla rovescia.</div>';
+  }
+  function orderedApps() {
+    const o = data.apps.order;
+    return apps.slice().sort((a, b) => {
+      const ia = o.indexOf(a.pkg), ib = o.indexOf(b.pkg);
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+      return a.label.localeCompare(b.label, "it");
+    });
+  }
+  function renderApps() {
+    const list = orderedApps();
+    $("apps").innerHTML = list.length ? list.map((a, i) => {
+      const off = data.apps.hidden.includes(a.pkg);
+      return `<div class="app ${off ? "off" : ""}"><div class="nm">${esc(a.label)}</div>
+        <button data-up="${i}" aria-label="Su">↑</button><button data-down="${i}" aria-label="Giù">↓</button>
+        <label class="switch"><input type="checkbox" data-vis="${esc(a.pkg)}" ${off ? "" : "checked"}><i></i></label></div>`;
+    }).join("") : '<div class="empty">Nessuna app trovata.</div>';
+  }
+
+  function collect(latest) {
+    const d = norm(latest || data);
+    d.profile.name = $("pName").value.trim();
+    d.profile.city = $("pCity").value.trim();
+    d.profile.voice = $("pVoice").checked;
+    d.profile.quietFrom = $("pQf").value; d.profile.quietTo = $("pQt").value;
+    d.profile.theme = $("pTheme").value; d.profile.wallpaper = $("pWall").value.trim();
+    const cutoff = ymd(new Date(Date.now() - 30 * 86400000));
+    d.events = data.events.filter(e => e.date >= cutoff);
+    d.countdowns = data.countdowns.filter(c => c.date >= ymd(new Date()));
+    d.training.target = Math.max(0, Math.min(7, parseInt($("tTarget").value, 10) || 0));
+    document.querySelectorAll("[data-day]").forEach(i => { d.training.plan[i.dataset.day] = i.value.trim(); });
+    d.focus = { title: $("fTitle").value.trim(), note: $("fNote").value.trim() };
+    d.apps = data.apps;
+    return d;
+  }
+
+  async function save() {
+    $("save").disabled = true; $("save").textContent = "Salvataggio…";
+    try {
+      // Merge onto the TV's latest copy so things set on the TV (workouts done, location) are kept.
+      const latest = await api("GET", "/api/data");
+      const merged = collect(latest);
+      await api("POST", "/api/data", merged);
+      data = merged; setDirty(false); status("SALVATO SULLA TV", true);
+    } catch (e) {
+      setDirty(true); status("ERRORE DI RETE");
+    }
+  }
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  document.addEventListener("input", e => { if (e.target.closest("main") && !e.target.closest("#eTitle, #eDate, #eStart, #eEnd, #cTitle, #cDate")) setDirty(true); });
+  $("eAdd").onclick = () => {
+    const t = $("eTitle").value.trim(); if (!t || !$("eDate").value) return;
+    data.events.push({ id: uid(), date: $("eDate").value, start: $("eStart").value, end: $("eEnd").value, title: t });
+    $("eTitle").value = ""; $("eEnd").value = ""; renderEvents(); setDirty(true);
+  };
+  $("cAdd").onclick = () => {
+    const t = $("cTitle").value.trim(); if (!t || !$("cDate").value) return;
+    data.countdowns.push({ id: uid(), title: t, date: $("cDate").value });
+    $("cTitle").value = ""; renderCds(); setDirty(true);
+  };
+  document.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.ev) { data.events = data.events.filter(x => x.id !== b.dataset.ev); renderEvents(); setDirty(true); }
+    if (b.dataset.cd) { data.countdowns = data.countdowns.filter(x => x.id !== b.dataset.cd); renderCds(); setDirty(true); }
+    if (b.dataset.up || b.dataset.down) {
+      const list = orderedApps().map(a => a.pkg);
+      const i = Number(b.dataset.up || b.dataset.down), j = b.dataset.up ? i - 1 : i + 1;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      data.apps.order = list; renderApps(); setDirty(true);
+    }
+  });
+  document.addEventListener("change", e => {
+    const v = e.target.dataset && e.target.dataset.vis;
+    if (!v) return;
+    const h = new Set(data.apps.hidden);
+    if (e.target.checked) h.delete(v); else h.add(v);
+    data.apps.hidden = Array.from(h); renderApps(); setDirty(true);
+  });
+  $("save").onclick = save;
+  $("pinBtn").onclick = () => { pin = $("pinInput").value.trim(); load(); };
+  $("pinInput").addEventListener("keydown", e => { if (e.key === "Enter") $("pinBtn").click(); });
+  window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+  if (pin) load(); else showGate(false);
+})();
+</script>
+</body>
+</html>
