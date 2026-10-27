@@ -52,10 +52,10 @@
     if (w && typeof w.temp === "number") {
       const t = Math.round(w.temp);
       const cond = wmo(w.code).text;
-      add(`Sono le <span class="hl">${hm(now)}</span>, fuori ${t}° e ${cond}.`,
-          `Sono le ${sayHm(now)}. Fuori ${t} gradi, ${cond}.`);
+      // The clock is already on screen: the time is only spoken, never written (it would go stale).
+      add(`Fuori ${t}° e ${cond}.`, `Sono le ${sayHm(now)}. Fuori ${t} gradi, ${cond}.`);
     } else {
-      add(`Sono le <span class="hl">${hm(now)}</span>.`, `Sono le ${sayHm(now)}.`);
+      add("", `Sono le ${sayHm(now)}.`);
     }
 
     // ---- agenda
@@ -135,7 +135,7 @@
     }
     return {
       t1, t2,
-      html: shown.map(p => p.html).join(" "),
+      html: shown.map(p => p.html).filter(Boolean).join(" "),
       speech: spokenGreeting + " " + parts.map(p => p.say).join(" ")
     };
   }

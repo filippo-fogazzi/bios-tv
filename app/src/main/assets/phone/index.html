@@ -107,6 +107,10 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
           <label><span>alle</span><input type="time" id="pQt"></label>
         </div>
         <label><span>Tema</span><select id="pTheme"><option value="landscape">Paesaggio dinamico</option><option value="monolith">Monolith (scuro BIOS)</option></select></label>
+        <div class="row">
+          <label><span>Sfondo</span><select id="pScene"><option value="auto">Ogni giorno diverso</option><option value="mountains">Montagne</option><option value="dunes">Dune</option><option value="lake">Lago</option><option value="hills">Colline</option><option value="waves">Onde</option></select></label>
+          <label><span>Orologio</span><select id="pClock"><option value="apple">Apple</option><option value="thin">Sottile</option></select></label>
+        </div>
         <label><span>Sfondo personale (link a un'immagine, facoltativo)</span><input id="pWall" inputmode="url" placeholder="https://…"></label>
       </div>
     </section>
@@ -207,7 +211,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
   }
 
   function norm(d) {
-    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "" }, d.profile);
+    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "", scene: "auto", clockStyle: "apple" }, d.profile);
     d.events = d.events || []; d.countdowns = d.countdowns || [];
     d.training = Object.assign({ target: 4, plan: {}, done: [] }, d.training);
     d.focus = Object.assign({ title: "", note: "" }, d.focus);
@@ -221,6 +225,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     $("today").textContent = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
     $("pName").value = p.name; $("pCity").value = p.city; $("pVoice").checked = p.voice !== false;
     $("pQf").value = p.quietFrom; $("pQt").value = p.quietTo; $("pTheme").value = p.theme; $("pWall").value = p.wallpaper || "";
+    $("pScene").value = p.scene || "auto"; $("pClock").value = p.clockStyle || "apple";
     $("eDate").value = ymd(new Date());
     $("tTarget").value = data.training.target;
     $("days").innerHTML = DAYS.map(([k, n]) => `<div class="day"><span class="mono">${n}</span><input data-day="${k}" placeholder="Riposo" value="${esc(data.training.plan[k] || "")}"></div>`).join("");
@@ -267,6 +272,7 @@ footer { margin: 32px 0 0; color: var(--ink-3); }
     d.profile.voice = $("pVoice").checked;
     d.profile.quietFrom = $("pQf").value; d.profile.quietTo = $("pQt").value;
     d.profile.theme = $("pTheme").value; d.profile.wallpaper = $("pWall").value.trim();
+    d.profile.scene = $("pScene").value; d.profile.clockStyle = $("pClock").value;
     const cutoff = ymd(new Date(Date.now() - 30 * 86400000));
     d.events = data.events.filter(e => e.date >= cutoff);
     d.countdowns = data.countdowns.filter(c => c.date >= ymd(new Date()));

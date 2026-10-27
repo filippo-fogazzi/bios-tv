@@ -8,9 +8,8 @@
 @font-face { font-family: "InterDisplay"; src: url(fonts/InterDisplay-Thin.otf); font-weight: 100; }
 @font-face { font-family: "InterDisplay"; src: url(fonts/InterDisplay-ExtraLight.otf); font-weight: 200; }
 @font-face { font-family: "InterDisplay"; src: url(fonts/InterDisplay-SemiBold.otf); font-weight: 600; }
+@font-face { font-family: "InterDisplay"; src: url(fonts/InterDisplay-Bold.otf); font-weight: 700; }
 @font-face { font-family: "BiosMono"; src: url(fonts/Mono.ttf); }
-
-@property --tint { syntax: "<color>"; inherits: true; initial-value: rgba(110, 118, 96, .55); }
 
 :root {
   --bg: #090a0b;
@@ -48,9 +47,9 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 .glow-b { width: 1200px; height: 1200px; left: -560px; bottom: -760px;
   background: radial-gradient(circle, rgba(236, 231, 222, .07) 0%, rgba(236, 231, 222, 0) 60%);
   animation: driftB 46s ease-in-out infinite alternate; }
-.glow-tint { width: 1700px; height: 900px; left: 110px; bottom: -560px;
-  background: radial-gradient(ellipse at center, var(--tint) 0%, transparent 64%);
-  opacity: .55; transition: --tint 1.2s var(--ease); }
+/* App-colour glow: two layers cross-faded with opacity only (GPU-cheap, no repaint) */
+.glow-tint { width: 1700px; height: 900px; left: 110px; bottom: -560px; opacity: 0; transition: opacity .7s ease; will-change: opacity; }
+.glow-tint.on { opacity: .5; }
 .grain { position: absolute; inset: 0; opacity: .5;
   background: linear-gradient(180deg, rgba(9,10,11,0) 0%, rgba(9,10,11,.35) 70%, rgba(9,10,11,.8) 100%); }
 body.night .glow-a { opacity: .6; }
@@ -103,6 +102,12 @@ body.morning .glow-b { background: radial-gradient(circle, rgba(236, 214, 180, .
 
 .hero-right { text-align: right; padding-top: 2px; }
 .clock { font-family: "InterDisplay"; font-weight: 100; font-size: 232px; line-height: .86; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+/* Apple lock-screen style: heavy, tight, glassy white with a soft top-to-bottom falloff */
+.clock.apple { font-weight: 700; letter-spacing: -.045em; font-feature-settings: "tnum" 1, "case" 1, "ss01" 1;
+  color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(180deg, rgba(255,255,255,.97) 0%, rgba(255,255,255,.86) 55%, rgba(255,255,255,.7) 100%);
+  filter: drop-shadow(0 8px 34px rgba(0,0,0,.22)); }
+.theme-monolith .clock.apple { background-image: linear-gradient(180deg, #f3eee6 0%, rgba(236,231,222,.78) 100%); }
 .clock-sub { margin-top: 22px; font-size: 18px; color: var(--ink-3); }
 
 /* ---------- blocks ---------- */
@@ -117,7 +122,7 @@ body.morning .glow-b { background: radial-gradient(circle, rgba(236, 214, 180, .
 .cards { margin-top: 18px; display: flex; gap: 24px; }
 .card { position: relative; width: 414px; height: 182px; padding: 26px 30px; border-radius: 26px;
   background: linear-gradient(180deg, var(--card-hi), var(--card)); border: 1px solid var(--line);
-  transition: transform .4s var(--ease), border-color .4s, background .4s, box-shadow .4s; overflow: hidden; }
+  transition: transform .28s var(--ease), border-color .28s; overflow: hidden; will-change: transform; }
 .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: linear-gradient(115deg, rgba(255,255,255,.10), rgba(255,255,255,0) 38%); opacity: .55; }
 .card .k { font-size: 15px; color: var(--ink-3); }
@@ -129,18 +134,24 @@ body.morning .glow-b { background: radial-gradient(circle, rgba(236, 214, 180, .
 .card .dots i.on { background: var(--olive); border-color: var(--olive); }
 .card .badge { position: absolute; right: 26px; bottom: 24px; font-size: 13px; padding: 7px 12px; border-radius: 14px; border: 1px solid var(--line-2); color: var(--ink-2); }
 .card .badge.ok { border-color: var(--olive); color: var(--olive); }
-.card.focused { transform: translateY(-8px) scale(1.04); border-color: rgba(236,231,222,.42);
-  background: linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.05));
-  box-shadow: 0 28px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.22); }
+.card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: rgba(255,255,255,.12); opacity: 0; transition: opacity .28s; }
+.card.focused { transform: translate3d(0, -8px, 0) scale(1.04); border-color: rgba(236,231,222,.5); }
+.card.focused::after { opacity: 1; }
 
 /* ---------- apps (tvOS-style tiles) ---------- */
 .block-apps { top: 806px; }
 .apps-viewport { margin-top: 20px; height: 240px; margin-left: -24px; padding-left: 24px; overflow: visible; }
-.apps { display: flex; gap: 30px; transition: transform .5s var(--ease); }
+.apps { display: flex; gap: 30px; transition: transform .34s var(--ease); will-change: transform; }
 .tile { position: relative; flex: 0 0 auto; width: 288px; }
 .tile .art { position: relative; width: 288px; height: 162px; border-radius: 24px; overflow: hidden;
-  background: #16181a; border: 1px solid var(--line); box-shadow: 0 10px 26px rgba(0,0,0,.35);
-  transition: transform .42s var(--ease), box-shadow .42s var(--ease), border-color .42s; }
+  background: #16181a; border: 1px solid var(--line);
+  transition: transform .24s var(--ease); will-change: transform; transform: translateZ(0); }
+/* Shadow lives on its own layer and only fades: no box-shadow repaint while moving */
+.tile .shade { position: absolute; left: 6px; right: 6px; top: 14px; height: 150px; border-radius: 24px;
+  box-shadow: 0 30px 50px rgba(0,0,0,.55); opacity: 0; transform: scale(1.06);
+  transition: opacity .24s; will-change: opacity; }
+.tile.focused .shade { opacity: 1; }
 .tile .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .tile .art.icon-only img { inset: auto; left: 50%; top: 50%; width: 96px; height: 96px; transform: translate(-50%, -50%); object-fit: contain; }
 .tile .art.icon-only .nm { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 17px; color: var(--ink-2); }
@@ -148,12 +159,11 @@ body.morning .glow-b { background: radial-gradient(circle, rgba(236, 214, 180, .
   background: linear-gradient(105deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.28) 50%, rgba(255,255,255,0) 60%);
   transform: translateX(-60%); transition: opacity .3s; }
 .tile .name { position: absolute; left: 0; right: 0; top: 182px; text-align: center; font-size: 22px; color: var(--ink);
-  opacity: 0; transform: translateY(-6px); transition: opacity .35s, transform .35s var(--ease); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile.focused .art { transform: scale(1.12) translateY(-6px); border-color: rgba(236,231,222,.5);
-  box-shadow: 0 34px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(236,231,222,.08); }
-.tile.focused .art::after { opacity: 1; animation: sheen 2.6s var(--ease) .2s infinite; }
+  opacity: 0; transform: translateY(-6px); transition: opacity .2s, transform .24s var(--ease); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.focused .art { transform: scale(1.12) translate3d(0, -6px, 0); }
+.tile.focused .art::after { opacity: 1; animation: sheen 1.1s var(--ease) .15s 1 both; }
 .tile.focused .name { opacity: 1; transform: translateY(8px); }
-@keyframes sheen { 0% { transform: translateX(-60%); } 55%, 100% { transform: translateX(60%); } }
+@keyframes sheen { 0% { transform: translateX(-60%); } 100% { transform: translateX(60%); } }
 .tile.moving .art { animation: wiggle .32s ease-in-out infinite alternate; border-color: var(--olive); }
 @keyframes wiggle { from { transform: scale(1.12) translateY(-6px) rotate(-1.2deg); } to { transform: scale(1.12) translateY(-6px) rotate(1.2deg); } }
 .apps-empty { font-size: 24px; color: var(--ink-3); padding-top: 50px; }
@@ -216,6 +226,7 @@ body.panel-open .panel-scrim { opacity: 1; }
 .theme-landscape .date { grid-area: date; font-size: 20px; color: rgba(255,255,255,.82); text-shadow: 0 1px 12px rgba(0,0,0,.35); }
 .theme-landscape .clock { grid-area: clock; margin-top: 6px; margin-left: -10px; font-size: 250px; font-weight: 100;
   color: rgba(255,255,255,.94); text-shadow: 0 4px 40px rgba(0,0,0,.18); }
+.theme-landscape .clock.apple { margin-left: -6px; margin-top: 14px; font-size: 236px; font-weight: 700; color: transparent; text-shadow: none; }
 .theme-landscape .clock-sub { display: none; }
 .theme-landscape .headline { grid-area: head; margin-top: 30px; font-size: 54px; letter-spacing: -.035em; line-height: 1;
   text-shadow: 0 2px 24px rgba(0,0,0,.3); }
@@ -232,7 +243,9 @@ body.panel-open .panel-scrim { opacity: 1; }
 .theme-landscape .label span { color: rgba(255,255,255,.85); }
 .theme-landscape .card { background: rgba(16,18,20,.34); border-color: rgba(255,255,255,.14);
   -webkit-backdrop-filter: blur(26px) saturate(1.35); backdrop-filter: blur(26px) saturate(1.35); }
+.theme-landscape.frost .card, .theme-landscape.frost .icon-btn { -webkit-backdrop-filter: none; backdrop-filter: none;
+  background-color: transparent; background-repeat: no-repeat; background-size: 1920px 1080px; }
 .theme-landscape .card .k { color: rgba(255,255,255,.55); }
 .theme-landscape .card .s { color: rgba(255,255,255,.72); }
-.theme-landscape .card.focused { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.5); }
+.theme-landscape .card.focused { border-color: rgba(255,255,255,.55); }
 .theme-landscape .tile .art { border-color: rgba(255,255,255,.14); }

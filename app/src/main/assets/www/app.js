@@ -47,7 +47,7 @@
   function loadData() {
     let d;
     try { d = JSON.parse(B.getData()); } catch (e) { d = {}; }
-    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "" }, d.profile);
+    d.profile = Object.assign({ name: "", city: "", voice: true, quietFrom: "", quietTo: "", theme: "landscape", wallpaper: "", scene: "auto", clockStyle: "apple" }, d.profile);
     d.events = d.events || [];
     d.training = Object.assign({ target: 4, plan: {}, done: [] }, d.training);
     d.focus = d.focus || { title: "", note: "" };
@@ -120,10 +120,15 @@
   /* ------------------------------------------------------------------ clock + hero */
   function renderClock() {
     const now = new Date();
-    $("clock").textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const apple = S.data.profile.clockStyle !== "thin";
+    const c = $("clock");
+    c.classList.toggle("apple", apple);
+    const t = `${apple ? now.getHours() : pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (c.textContent !== t) c.textContent = t;                        // repaint only when the minute changes
     const w = S.weather;
     const wx = isLandscape() && w ? `  ·  ${Math.round(w.temp)}° ${J.wmo(w.code).text}` : "";
-    $("date").textContent = (J.longDate(now) + wx).toUpperCase();
+    const d = (J.longDate(now) + wx).toUpperCase();
+    if ($("date").textContent !== d) $("date").textContent = d;
     const h = now.getHours();
     document.body.classList.toggle("night", h < 5 || h >= 22);
     document.body.classList.toggle("morning", h >= 5 && h < 11);
@@ -143,7 +148,7 @@
       }
       el.innerHTML = out + (shown < total ? '<span class="caret"></span>' : "");
     };
-    S.typing = setInterval(() => { shown += 2; frame(); if (shown >= total) { clearInterval(S.typing); S.typing = null; } }, 26);
+    S.typing = setInterval(() => { shown += 3; frame(); if (shown >= total) { clearInterval(S.typing); S.typing = null; } }, 40);
     frame();
   }
 
@@ -189,7 +194,8 @@
     const img = $("wallpaper");
     if (land && /^https?:\/\//.test(url)) {
       if (img.getAttribute("src") !== url) {
-        img.onload = () => document.body.classList.add("has-wallpaper");
+        img.crossOrigin = "anonymous";
+        img.onload = () => { document.body.classList.add("has-wallpaper"); drawScene(); };
         img.onerror = () => { document.body.classList.remove("has-wallpaper"); drawScene(); };
         img.src = url;
       }
@@ -199,7 +205,38 @@
   function drawScene() {
     if (!isLandscape() || !window.Scene) return;
     const sun = S.weather && S.weather.sun;
-    try { window.Scene.draw($("scene"), new Date(), sun); } catch (e) { /* keep last frame */ }
+    try {
+      const P = window.Scene.draw($("scene"), new Date(), sun, S.data.profile.scene);
+      S.sceneName = P.scene;
+      S.frost = document.body.classList.contains("has-wallpaper") ? frostFromImage() : window.Scene.frosted($("scene"));
+    } catch (e) { S.frost = null; }
+    applyFrost();
+  }
+  function frostFromImage() {
+    try {
+      const c = document.createElement("canvas"); c.width = 1920; c.height = 1080;
+      const img = $("wallpaper"), x = c.getContext("2d");
+      const k = Math.max(1920 / img.naturalWidth, 1080 / img.naturalHeight);
+      const w = img.naturalWidth * k, h = img.naturalHeight * k;
+      x.drawImage(img, (1920 - w) / 2, (1080 - h) / 2, w, h);
+      return window.Scene.frosted(c);                                  // throws if the host blocks CORS
+    } catch (e) { return null; }
+  }
+  /* Paint each glass element with its own slice of the pre-blurred background. */
+  function stagePos(el) {
+    let x = 0, y = 0;
+    while (el && el !== stage) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; }
+    return [x, y];
+  }
+  function applyFrost() {
+    const on = isLandscape() && !!S.frost;
+    document.body.classList.toggle("frost", on);
+    document.querySelectorAll(".card, .icon-btn").forEach(el => {
+      if (!on) { el.style.backgroundImage = ""; el.style.backgroundPosition = ""; return; }
+      const [x, y] = stagePos(el);
+      el.style.backgroundImage = `linear-gradient(rgba(14,16,18,.30), rgba(14,16,18,.30)), url(${S.frost})`;
+      el.style.backgroundPosition = `0 0, ${-x - 1}px ${-y - 1}px`;
+    });
   }
 
   /* ------------------------------------------------------------------ weather */
@@ -291,6 +328,7 @@
     $("cards").innerHTML = cards.map((c, i) =>
       `<div class="card focusable" data-row="cards" data-idx="${i}" data-act="${c.act}">
         <div class="k mono">${c.k}</div><div class="v">${c.v}</div><div class="s">${c.s}</div>${c.extra || ""}</div>`).join("");
+    applyFrost();
     applyFocus(false);
   }
 
@@ -311,7 +349,7 @@
     box.innerHTML = S.apps.map((a, i) => {
       const art = a.banner ? `<div class="art"><img src="${a.banner}" alt=""></div>`
         : `<div class="art icon-only">${a.icon ? `<img src="${a.icon}" alt="">` : ""}<div class="nm">${J.esc(a.label)}</div></div>`;
-      return `<div class="tile focusable" data-row="apps" data-idx="${i}" data-pkg="${a.pkg}">${art}<div class="name">${J.esc(a.label)}</div></div>`;
+      return `<div class="tile focusable" data-row="apps" data-idx="${i}" data-pkg="${a.pkg}"><div class="shade"></div>${art}<div class="name">${J.esc(a.label)}</div></div>`;
     }).join("");
     S.rowIdx.apps = Math.min(S.rowIdx.apps, S.apps.length - 1);
     if (S.focus.row === "apps") S.focus.idx = S.rowIdx.apps;
@@ -335,6 +373,19 @@
     } catch (e) { return null; }
   }
 
+  /* App colour glow: paint the hidden layer, then cross-fade (opacity only, no repaint while animating). */
+  let tintCur = null, tintFront = "tintA";
+  function setTint(color) {
+    if (color === tintCur) return;
+    tintCur = color;
+    const front = $(tintFront), back = $(tintFront === "tintA" ? "tintB" : "tintA");
+    if (color) {
+      back.style.background = `radial-gradient(ellipse at center, ${color} 0%, transparent 64%)`;
+      back.classList.add("on"); front.classList.remove("on");
+      tintFront = back.id;
+    } else { front.classList.remove("on"); back.classList.remove("on"); }
+  }
+
   /* ------------------------------------------------------------------ focus */
   const ROWS = ["top", "cards", "apps"];
   function rowEls(row) { return Array.from(document.querySelectorAll(`.focusable[data-row="${row}"]`)); }
@@ -353,11 +404,11 @@
     if (S.focus.row === "apps") {
       const step = 318, n = els.length, first = Math.max(0, Math.min(S.focus.idx - 4, n - 5));
       $("apps").style.transform = `translateX(${-first * step}px)`;
-      if (withTint) { const t = tintFor(el); if (t) stage.style.setProperty("--tint", t); }
+      if (withTint) setTint(tintFor(el));
       $("appsHint").textContent = S.moveMode ? "← → PER SPOSTARE · OK PER CONFERMARE" : "";
     } else {
       $("appsHint").textContent = "";
-      stage.style.setProperty("--tint", "rgba(110, 118, 96, .55)");
+      setTint(null);
     }
   }
   function moveFocus(dir) {
@@ -458,6 +509,11 @@
     document.body.classList.remove("panel-open");
     applyFocus();
   }
+  const SCENE_NAMES = { auto: "OGNI GIORNO", mountains: "MONTAGNE", dunes: "DUNE", lake: "LAGO", hills: "COLLINE", waves: "ONDE" };
+  function sceneLabel() {
+    const k = S.data.profile.scene || "auto";
+    return k === "auto" && S.sceneName ? `AUTO · ${SCENE_NAMES[S.sceneName]}` : SCENE_NAMES[k] || "OGNI GIORNO";
+  }
   function openSettings() {
     let info = {};
     try { info = JSON.parse(B.getServerInfo()); } catch (e) { /* no server */ }
@@ -472,6 +528,8 @@
       <div class="list">
         <button class="pbtn" data-act="voice">Voce di benvenuto <span class="st">${S.data.profile.voice !== false ? "ATTIVA" : "SPENTA"}</span></button>
         <button class="pbtn" data-act="theme">Tema <span class="st">${isLandscape() ? "PAESAGGIO" : "MONOLITH"}</span></button>
+        <button class="pbtn" data-act="scene">Sfondo <span class="st">${sceneLabel()}</span></button>
+        <button class="pbtn" data-act="clock">Orologio <span class="st">${S.data.profile.clockStyle === "thin" ? "SOTTILE" : "APPLE"}</span></button>
         <button class="pbtn" data-act="test">Ascolta il briefing <span class="st">OK</span></button>
         <button class="pbtn" data-act="home">Tasto Home apre BIOS <span class="st">${home ? "ATTIVO" : "DA ATTIVARE"}</span></button>
         <button class="pbtn" data-act="refresh">Aggiorna meteo e app <span class="st">OK</span></button>
@@ -496,6 +554,15 @@
   function panelAction(act) {
     if (act === "voice") { updateData(d => { d.profile.voice = d.profile.voice === false; }); openSettings(); S.panel.idx = 0; applyFocus(); }
     else if (act === "theme") { updateData(d => { d.profile.theme = isLandscape() ? "monolith" : "landscape"; }); applyTheme(); renderClock(); openSettings(); S.panel.idx = 1; applyFocus(); }
+    else if (act === "scene" || act === "clock") {
+      const idx = S.panel.idx;
+      updateData(d => {
+        if (act === "clock") d.profile.clockStyle = d.profile.clockStyle === "thin" ? "apple" : "thin";
+        else { const all = ["auto"].concat(window.Scene.SCENES); d.profile.scene = all[(all.indexOf(d.profile.scene || "auto") + 1) % all.length]; }
+      });
+      if (act === "scene") drawScene(); else renderClock();
+      openSettings(); S.panel.idx = idx; applyFocus();
+    }
     else if (act === "test") { const b = briefing(false); B.speak(b.speech); }
     else if (act === "home") B.openAccessibility();
     else if (act === "refresh") { B.requestApps(true); loadWeather(); toast("AGGIORNAMENTO IN CORSO"); }
@@ -579,7 +646,8 @@
     const dd = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
     const in12 = new Date(d); in12.setDate(d.getDate() + 12);
     const demo = {
-      version: 1, profile: { name: "Filippo", city: "", voice: true, quietFrom: "", quietTo: "" }, geo: null,
+      version: 1, profile: Object.assign({ name: "Filippo", city: "", voice: true, quietFrom: "", quietTo: "" },
+        Object.fromEntries(new URLSearchParams(location.search))), geo: null,
       events: [{ id: "1", date: dd(t), start: "09:00", end: "11:00", title: "Biologia" }, { id: "2", date: dd(t), start: "15:00", end: "19:00", title: "Turno lavoro" }],
       training: { target: 4, plan: { 1: "Push", 3: "Pull", 5: "Legs", 6: "Upper", [d.getDay()]: "Legs" }, done: [] },
       focus: { title: "NODARA · MVP", note: "Ruota natale interattiva" },
