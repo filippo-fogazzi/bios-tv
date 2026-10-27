@@ -665,6 +665,28 @@
         ${row("system", "Impostazioni della TV", "", "")}
       </div>`);
   }
+  /* The direct link to Accessibility doesn't exist on every TV: explain the path instead. */
+  function openHomeGuide() {
+    const on = B.isHomeWatcherOn();
+    openPanel(`
+      <div class="k mono">BIOS / TASTO HOME</div>
+      <h2>TASTO<span class="muted">HOME.</span></h2>
+      <div class="info">
+        <div class="k mono">STATO</div><div class="big">${on ? "Attivo: Home e accensione portano a BIOS" : "Non attivo"}</div>
+      </div>
+      <div class="sec mono">DA FARE UNA VOLTA SOLA</div>
+      <div class="info steps">
+        <p><b>1</b> Impostazioni della TV → <b>Sistema</b> → <b>Accessibilità</b></p>
+        <p><b>2</b> In fondo all'elenco scegli <b>BIOS TV · Tasto Home</b></p>
+        <p><b>3</b> Attivalo e conferma con <b>Consenti</b></p>
+        <p class="note">Se l'interruttore è grigio la TV blocca i permessi delle app installate a mano: dimmelo e lo sblocchiamo.</p>
+      </div>
+      <div class="list">
+        ${row("system", "Apri Impostazioni della TV", "Poi segui i passaggi qui sopra", "")}
+        ${row("homeTry", "Prova il collegamento diretto", "Su alcune TV apre subito Accessibilità", "")}
+      </div>`);
+  }
+
   /* Re-render the settings panel in place, keeping the focused row. */
   function refreshSettingsRow() {
     if (!S.panel || !$("panel").querySelector('[data-act="theme"]')) return;
@@ -718,10 +740,8 @@
       openSettings(); S.panel.idx = idx; applyFocus();
     }
     else if (act === "test") { const b = briefing(false); B.speak(b.speech); }
-    else if (act === "home") {
-      const ok = B.openAccessibility();
-      if (!ok) toast("IMPOSTAZIONI → SISTEMA → ACCESSIBILITÀ → BIOS TV · TASTO HOME");
-    }
+    else if (act === "home") openHomeGuide();
+    else if (act === "homeTry") { if (!B.openAccessibility()) toast("APRI IMPOSTAZIONI TV E SEGUI I PASSAGGI"); }
     else if (act === "update") {
       if (S.update) { S.updMsg = "Scarico la nuova versione…"; B.installUpdate(); }
       else { S.updMsg = "Controllo in corso…"; B.checkUpdate && B.checkUpdate(); }
@@ -943,6 +963,7 @@
     },
     onWake() { S.woke = true; setTimeout(() => { if (S.woke) app.onResume(); }, 1500); },
     onResume() {
+      if (B.checkUpdate && Date.now() - (S.lastUpdCheck || 0) > 20 * 60000) { S.lastUpdCheck = Date.now(); B.checkUpdate(); }
       if (S.saver) { S.saver = false; clearInterval(S.saverT); document.body.classList.remove("saver"); endSaverScenes(); }
       resetIdle();
       if (S.panel) closePanel();
@@ -982,7 +1003,10 @@
     setInterval(drawScene, 10 * 60000);
     setInterval(loadBios, 10 * 60000);
     resetIdle();
-    if (B.checkUpdate) { setTimeout(() => B.checkUpdate(), 15000); setInterval(() => B.checkUpdate(), 6 * 3600000); }
+    if (B.checkUpdate) {
+      setTimeout(() => { S.lastUpdCheck = Date.now(); B.checkUpdate(); }, 15000);
+      setInterval(() => { S.lastUpdCheck = Date.now(); B.checkUpdate(); }, 3 * 3600000);
+    }
     if (PREVIEW) {
       const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "ok", Escape: "back", Backspace: "back", h: "hold", m: "menu" };
       window.addEventListener("keydown", e => { const k = map[e.key]; if (k) { e.preventDefault(); app.key(k); } });

@@ -332,11 +332,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean isHomeWatcherOn() { return HomeWatcherService.isEnabled(MainActivity.this); }
 
         /** True if an accessibility screen opened; false means the general settings opened instead. */
-        @JavascriptInterface public boolean openAccessibility() {
-            if (openAccessibilitySettings()) return true;
-            safeStart(new Intent(Settings.ACTION_SETTINGS));
-            return false;
-        }
+        @JavascriptInterface public boolean openAccessibility() { return openAccessibilitySettings(); }
 
         /** The TV system's UTC offset right now, in minutes (used when the zone is set to "auto"). */
         @JavascriptInterface public int tzOffsetMinutes() {

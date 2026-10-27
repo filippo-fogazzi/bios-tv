@@ -337,3 +337,8 @@ body.night .mist i { opacity: .5; }
 .pbtn.focused .t small { color: rgba(9,10,11,.62); }
 .panel h2 { font-size: 72px; }
 .panel .info .big { font-size: 30px; }
+
+.panel .info.steps p { font-size: 22px; color: var(--ink-2); line-height: 1.5; margin: 6px 0; }
+.panel .info.steps p b { color: var(--ink); font-weight: 500; }
+.panel .info.steps p > b:first-child { display: inline-block; width: 30px; font-family: "BiosMono"; color: var(--olive); }
+.panel .info.steps .note { font-size: 17px; color: var(--ink-3); margin-top: 12px; }
